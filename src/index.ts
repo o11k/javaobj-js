@@ -2,8 +2,8 @@ type ClassDesc = {}
 
 
 class ObjectStreamException extends Error {}
-class StreamCorruptedException extends ObjectStreamException {}
 class EOFException extends ObjectStreamException {}  // Not the same hierarchy as Java
+class UTFDataFormatException extends ObjectStreamException {}    // Not the same hierarchy as Java
 
 class ObjectInputStream {
     private data: Uint8Array;
@@ -15,7 +15,7 @@ class ObjectInputStream {
     }
 
     eof(): boolean {
-        return this.offset === this.data.byteLength;
+        return this.offset === this.data.length;
     }
 
     read(): number
@@ -26,7 +26,8 @@ class ObjectInputStream {
             return this.read(1)[0];
         }
 
-        length = Math.min(length, this.data.byteLength-this.offset);
+        length = Math.min(length, this.data.length-this.offset);
+        if (length < 0) throw new Error("Can't read a negative number of bytes");
         const result = this.data.slice(this.offset, this.offset + length);
         this.offset += length;
         return result
@@ -34,7 +35,7 @@ class ObjectInputStream {
 
     readFully(length: number): Uint8Array {
         const result = this.read(length);
-        if (result.byteLength < length) {
+        if (result.length < length) {
             throw new EOFException();
         }
         return result;
@@ -49,27 +50,102 @@ class ObjectInputStream {
         return this.data[this.offset];
     }
 
-    readBoolean(): boolean {}
+    private readIntegral(numBytes: number, signed: boolean): bigint {
+        let result = 0n;
+        const bytes = this.readFully(numBytes);
+        for (const byte of bytes) {
+            result <<= 8n;
+            result += BigInt(byte);
+        }
+        if (signed) {
+            const signMask = 1 << 7;
+            const signBit = numBytes > 0 && ((bytes[0] & signMask) !== 0);
+            if (signBit) {
+                const modulus = 1n << BigInt(numBytes * 8 - 1);
+                result -= modulus;
+            }
+        }
+        return result;
+    }
 
-    readByte(): number {}
+    readBoolean(): boolean {
+        return this.readIntegral(1, false) !== 0n;
+    }
 
-    readUnsignedByte(): number {}
+    readByte(): number {
+        return Number(this.readIntegral(1, true));
+    }
 
-    readChar(): number {}
+    readUnsignedByte(): number {
+        return Number(this.readIntegral(1, false));
+    }
 
-    readShort(): number {}
+    readChar(): string {
+        return String.fromCharCode(Number(this.readIntegral(1, false)));
+    }
 
-    readUnsignedShort(): number {}
+    readShort(): number {
+        return Number(this.readIntegral(2, true));
+    }
 
-    readInt(): number {}
+    readUnsignedShort(): number {
+        return Number(this.readIntegral(2, false));
+    }
 
-    readLong(): bigint {}
+    readInt(): number {
+        return Number(this.readIntegral(4, true));
+    }
 
-    readFloat(): number {}
+    readLong(): bigint {
+        return this.readIntegral(8, true);
+    }
 
-    readDouble(): number {}
+    readFloat(): number {
+        return new DataView(this.readFully(4).buffer).getFloat32(0, false);
+    }
 
-    readUtf(): string {}
+    readDouble(): number {
+        return new DataView(this.readFully(8).buffer).getFloat64(0, false);
+    }
+
+    // https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#readUTF--
+    readUtf(): string {
+        const length = this.readUnsignedShort();
+        const bytes = this.readFully(length);
+
+        const resultChars = new Uint16Array(bytes.length);
+        let resultCharsOffset = 0;
+        for (let i=0; i<bytes.length; resultCharsOffset++) {
+            const a = bytes[i++];
+
+            // Single-byte group
+            if ((a & 0b1000_0000) === 0b0000_0000) {
+                resultChars[resultCharsOffset] = a;
+            }
+            // Two-byte group
+            else if ((a & 0b1110_0000) === 0b1100_0000) {
+                if (i+1 > bytes.length) throw new UTFDataFormatException();
+                const b = bytes[i++];
+                if ((b & 0b1100_0000) !== 0b1000_0000) throw new UTFDataFormatException();
+                resultChars[resultCharsOffset] = (((a & 0x1F) << 6) | (b & 0x3F));
+            }
+            // Three-byte group
+            else if ((a & 0b1111_0000) === 0b1110_0000) {
+                if (i+2 > bytes.length) throw new UTFDataFormatException();
+                const b = bytes[i++];
+                const c = bytes[i++];
+                if ((b & 0b1100_0000) !== 0b1000_0000) throw new UTFDataFormatException();
+                if ((c & 0b1100_0000) !== 0b1000_0000) throw new UTFDataFormatException();
+                resultChars[resultCharsOffset] = (((a & 0x0F) << 12) | ((b & 0x3F) << 6) | (c & 0x3F));
+            }
+            //  Encoding error
+            else {
+                throw new UTFDataFormatException();
+            }
+        }
+
+        return Array.from(resultChars.subarray(0, resultCharsOffset), String.fromCharCode).join("");
+    }
 
     readObject(): any {}
 
