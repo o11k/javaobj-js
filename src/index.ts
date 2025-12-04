@@ -34,6 +34,9 @@ class ObjectStreamException extends IOException {}
 class StreamCorruptedException extends ObjectStreamException {}
 class EOFException extends IOException {}
 class UTFDataFormatException extends IOException {}
+class RuntimeException extends JavaException {}
+class IllegalStateException extends RuntimeException {}
+class IndexOutOfBoundsException extends RuntimeException {}
 
 class NotImplementedError extends Error {}  // TODO remove before publishing
 
@@ -85,62 +88,44 @@ class ObjectInputStream {
         return this.data[this.offset];
     }
 
-    private readIntegral(numBytes: number, signed: boolean): bigint {
-        let result = 0n;
-        const bytes = this.readFully(numBytes);
-        for (const byte of bytes) {
-            result <<= 8n;
-            result += BigInt(byte);
-        }
-        if (signed) {
-            const signMask = 1 << 7;
-            const signBit = numBytes > 0 && ((bytes[0] & signMask) !== 0);
-            if (signBit) {
-                const modulus = 1n << BigInt(numBytes * 8 - 1);
-                result -= modulus;
-            }
-        }
-        return result;
-    }
-
     readBoolean(): boolean {
-        return this.readIntegral(1, false) !== 0n;
+        return ByteArray.getBoolean(this.readFully(1));
     }
 
     readByte(): number {
-        return Number(this.readIntegral(1, true));
+        return ByteArray.getByte(this.readFully(1));
     }
 
     readUnsignedByte(): number {
-        return Number(this.readIntegral(1, false));
+        return ByteArray.getUnsignedByte(this.readFully(1));
     }
 
     readChar(): string {
-        return String.fromCharCode(Number(this.readIntegral(1, false)));
+        return ByteArray.getChar(this.readFully(1));
     }
 
     readShort(): number {
-        return Number(this.readIntegral(2, true));
+        return ByteArray.getShort(this.readFully(2));
     }
 
     readUnsignedShort(): number {
-        return Number(this.readIntegral(2, false));
+        return ByteArray.getUnsignedShort(this.readFully(2));
     }
 
     readInt(): number {
-        return Number(this.readIntegral(4, true));
+        return ByteArray.getInt(this.readFully(4));
     }
 
     readLong(): bigint {
-        return this.readIntegral(8, true);
+        return ByteArray.getLong(this.readFully(8));
     }
 
     readFloat(): number {
-        return new DataView(this.readFully(4).buffer).getFloat32(0, false);
+        return ByteArray.getFloat(this.readFully(4));
     }
 
     readDouble(): number {
-        return new DataView(this.readFully(8).buffer).getFloat64(0, false);
+        return ByteArray.getDouble(this.readFully(8));
     }
 
     // https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#readUTF--
@@ -222,5 +207,71 @@ class ObjectInputStream {
     registerHandler<T>(className: string, handler: (ois: ObjectInputStream, initial: {}, classDesc: ClassDesc) => T): void;
     registerHandler<T, S>(className: string, handler: (ois: ObjectInputStream, initial: S, classDesc: ClassDesc) => T, initializer?: () => S): void {
 
+    }
+}
+
+
+class ByteArray {
+    private static getIntegral(arr: Uint8Array, numBytes: number, signed: boolean): bigint {
+        if (numBytes < arr.length) {
+            throw new IndexOutOfBoundsException();
+        }
+        const bytes = arr.subarray(0, numBytes);
+        let result = 0n;
+        for (const byte of bytes) {
+            result <<= 8n;
+            result += BigInt(byte);
+        }
+        if (signed) {
+            const signMask = 1 << 7;
+            const signBit = numBytes > 0 && ((bytes[0] & signMask) !== 0);
+            if (signBit) {
+                const modulus = 1n << BigInt(numBytes * 8 - 1);
+                result -= modulus;
+            }
+        }
+        return result;
+    }
+
+    public static getBoolean(arr: Uint8Array): boolean {
+        return arr[0] != 0;
+    }
+
+    public static getByte(arr: Uint8Array): number {
+        return Number(this.getIntegral(arr, 1, true));
+    }
+
+    public static getUnsignedByte(arr: Uint8Array): number {
+        return Number(this.getIntegral(arr, 1, false))
+    }
+
+    public static getChar(arr: Uint8Array): string {
+        return String.fromCharCode(Number(this.getIntegral(arr, 1, false)));
+    }
+
+    public static getShort(arr: Uint8Array): number {
+        return Number(this.getIntegral(arr, 2, true));
+    }
+
+    public static getUnsignedShort(arr: Uint8Array): number {
+        return Number(this.getIntegral(arr, 2, false));
+    }
+
+    public static getInt(arr: Uint8Array): number {
+        return Number(this.getIntegral(arr, 4, true));
+    }
+
+    public static getLong(arr: Uint8Array): bigint {
+        return this.getIntegral(arr, 8, true);
+    }
+
+    public static getFloat(arr: Uint8Array): number {
+        if (arr.length < 4) throw new IndexOutOfBoundsException();
+        return new DataView(arr.subarray(0, 4).buffer).getFloat32(0, false);
+    }
+
+    public static getDouble(arr: Uint8Array): number {
+        if (arr.length < 4) throw new IndexOutOfBoundsException();
+        return new DataView(arr.subarray(0, 4).buffer).getFloat32(0, false);
     }
 }
