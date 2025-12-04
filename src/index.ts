@@ -147,7 +147,7 @@ class ObjectInputStream extends InputStream implements ObjectInput {
     }
 
     readChar(): string {
-        return ByteArray.getChar(this.readFully(1));
+        return ByteArray.getChar(this.readFully(2));
     }
 
     readShort(): number {
@@ -292,7 +292,7 @@ class ByteArray {
     }
 
     public static getChar(arr: Uint8Array): string {
-        return String.fromCharCode(Number(this.getIntegral(arr, 1, false)));
+        return String.fromCharCode(Number(this.getIntegral(arr, 2, false)));
     }
 
     public static getShort(arr: Uint8Array): number {
