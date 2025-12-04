@@ -40,11 +40,57 @@ class IndexOutOfBoundsException extends RuntimeException {}
 
 class NotImplementedError extends Error {}  // TODO remove before publishing
 
-class ObjectInputStream {
+
+interface DataInput {
+    readFully(len: number): Uint8Array;
+    skipBytes(n: number): number;
+    readBoolean(): boolean
+    readByte(): number
+    readUnsignedByte(): number
+    readChar(): string
+    readShort(): number
+    readUnsignedShort(): number
+    readInt(): number
+    readLong(): bigint
+    readFloat(): number
+    readDouble(): number
+    readUtf(): string;
+}
+
+interface ObjectInput extends DataInput {
+    readObject(): any;
+    read1(): number;
+    read(len: number): Uint8Array;
+    skip(n: number): number;
+}
+
+abstract class InputStream {
+    public abstract read1(): number;
+
+    public read(len: number): Uint8Array {
+        const result = new Uint8Array(len);
+        let i=0;
+        for (; i<len; i++) {
+            const c = this.read1();
+            if (c === -1) {
+                break;
+            }
+            result[i] = c;
+        }
+        return result.slice(0, i);
+    }
+
+    public skip(n: number): number {
+        return this.read(n).length;
+    }
+}
+
+class ObjectInputStream extends InputStream implements ObjectInput {
     private data: Uint8Array;
     private offset: number;
 
     constructor(data: Uint8Array) {
+        super();
         this.data = data;
         this.offset = 0;
 
@@ -52,18 +98,18 @@ class ObjectInputStream {
         if (this.readShort() !== STREAM_VERSION) throw new StreamCorruptedException();
     }
 
-    eof(): boolean {
+    private eof(): boolean {
         return this.offset === this.data.length;
     }
 
-    read(): number
-    read(length: number): Uint8Array
-    read(length?: number): number | Uint8Array {
-        if (length === undefined) {
-            if (this.eof()) return -1;
-            return this.read(1)[0];
+    read1(): number {
+        if (this.eof()) {
+            return -1;
         }
+        return this.read(1)[0];
+    }
 
+    read(length: number): Uint8Array {
         length = Math.min(length, this.data.length-this.offset);
         if (length < 0) throw new Error("Can't read a negative number of bytes");
         const result = this.data.slice(this.offset, this.offset + length);
@@ -79,8 +125,8 @@ class ObjectInputStream {
         return result;
     }
 
-    skipBytes(length: number): void {
-        this.read(length);
+    skipBytes(n: number): number {
+        return this.skip(n);
     }
 
     private peekByte(): number {
