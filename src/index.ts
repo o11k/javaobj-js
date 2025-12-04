@@ -109,6 +109,36 @@ class BasicInputStream extends InputStream {
 }
 
 
+class PeekInputStream extends InputStream {
+    private in: InputStream;
+    private peekb: number = -1;
+
+    constructor(in_: InputStream) {
+        super();
+        this.in = in_;
+    }
+
+    public peek(): number {
+        if (this.peekb >= 0) {
+            return this.peekb;
+        }
+        this.peekb = this.in.read1();
+        return this.peekb;
+    }
+
+    public read1(): number {
+        if (this.peekb >= 0) {
+            const c = this.peekb;
+            this.peekb = -1;
+            return c;
+        } else {
+            const c = this.in.read1();
+            return c;
+        }
+    }
+}
+
+
 class ObjectInputStream extends InputStream implements ObjectInput {
     private data: Uint8Array;
     private offset: number;
