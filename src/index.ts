@@ -42,7 +42,14 @@ class NotImplementedError extends Error {}  // TODO remove before publishing
 
 // Note: interface and class definitions are slightly different to Java
 
-interface DataInput {
+interface ByteInput {
+    read1(): number
+    read(len: number): Uint8Array
+    readFully(len: number): Uint8Array
+    skip(n: number): number
+}
+
+interface PrimitiveInput {
     readBoolean(): boolean
     readByte(): number
     readUnsignedByte(): number
@@ -53,21 +60,97 @@ interface DataInput {
     readLong(): bigint
     readFloat(): number
     readDouble(): number
-    readUtf(): string;
+    readUTF(): string;
 }
 
-interface ObjectInput extends DataInput {
+interface ObjectInput {
     readObject(): any;
 }
 
-abstract class InputStream {
-    public abstract read1(): number;
+/*
+Primitive read methods:
+- read1
+- read
+- readFully
+- readBoolean
+- readByte
+- readUnsignedByte
+- readShort
+- readUnsignedShort
+- readInt
+- readLong
+- readFloat
+- readDouble
+- readUTF
+Only read from block data; otherwise EOF.
 
-    public read(len: number): Uint8Array {
+Raw primitive read methods (private):
+If inside block data, don't read beyond it.
+If not inside block, read bytes from raw data.
+
+readObject:
+Fail if inside block data, unless called by readFields / defaultReadObject.
+
+readFields / defaultReadObject:
+Fail with NotActiveException if 
+*/
+
+class ObjectInputStream implements ByteInput, PrimitiveInput, ObjectInput {
+    private data: Uint8Array;
+    private offset: number;
+
+    private remainingBlock: number;
+
+    constructor(data: Uint8Array) {
+        this.data = data;
+        this.offset = 0;
+        this.remainingBlock = 0;
+
+        if (this._readUnsignedShort(true) !== STREAM_MAGIC)   throw new StreamCorruptedException();
+        if (this._readUnsignedShort(true) !== STREAM_VERSION) throw new StreamCorruptedException();
+    }
+
+    private _peek(): number {
+        if (this.offset >= this.data.length)
+            return -1;
+        return this.data[this.offset];
+    }
+
+    // =================
+    // ByteInput methods
+    // =================
+
+    private _read1(trusted: boolean): number {
+        if (trusted && this.remainingBlock <= 0) {
+            if (this.offset >= this.data.length)
+                return -1;
+            return this.data[this.offset++];
+        } else {
+            while (this.remainingBlock <= 0) {
+                const tc = this._peek();
+                switch (tc) {
+                    case TC_BLOCKDATA:
+                        this._read1(true);
+                        this.remainingBlock = this._readUnsignedByte(true);
+                        break;
+                    case TC_BLOCKDATALONG:
+                        this._read1(true);
+                        this.remainingBlock = this._readInt(true);
+                        break;
+                    default:
+                        return -1;
+                }
+            }
+            this.remainingBlock--;
+            return this._read1(true);
+        }
+    }
+
+    private _read(len: number, trusted: boolean): Uint8Array {
         const result = new Uint8Array(len);
         let i=0;
         for (; i<len; i++) {
-            const c = this.read1();
+            const c = this._read1(trusted);
             if (c === -1) {
                 break;
             }
@@ -76,109 +159,26 @@ abstract class InputStream {
         return result.slice(0, i);
     }
 
-    public readFully(len: number): Uint8Array {
-        const result = this.read(len);
+    private _readFully(len: number, trusted: boolean): Uint8Array {
+        const result = this._read(len, trusted);
         if (result.length < len) {
             throw new EOFException()
         }
         return result;
     }
 
-    public skip(n: number): number {
-        return this.read(n).length;
-    }
-}
-
-
-class BasicInputStream extends InputStream {
-    private data: Uint8Array;
-    private offset = 0;
-
-    constructor(data: Uint8Array) {
-        super();
-        this.data = data;
+    private _skip(n: number, trusted: boolean): number {
+        return this._read(n, trusted).length;
     }
 
-    public read1(): number {
-        if (this.offset < this.data.length) {
-            return this.data[this.offset++];
-        } else {
-            return -1;
-        }
-    }
-}
+    public read1(): number {return this._read1(false)}
+    public read(len: number): Uint8Array {return this._read(len, false)}
+    public readFully(len: number): Uint8Array {return this._readFully(len, false)}
+    public skip(n: number): number {return this._skip(n, false)}
 
-
-class PeekInputStream extends InputStream {
-    private in: InputStream;
-    private peekb: number = -1;
-
-    constructor(in_: InputStream) {
-        super();
-        this.in = in_;
-    }
-
-    public peek(): number {
-        if (this.peekb >= 0) {
-            return this.peekb;
-        }
-        this.peekb = this.in.read1();
-        return this.peekb;
-    }
-
-    public read1(): number {
-        if (this.peekb >= 0) {
-            const c = this.peekb;
-            this.peekb = -1;
-            return c;
-        } else {
-            const c = this.in.read1();
-            return c;
-        }
-    }
-}
-
-
-class ObjectInputStream extends InputStream implements ObjectInput {
-    private data: Uint8Array;
-    private offset: number;
-
-    constructor(data: Uint8Array) {
-        super();
-        this.data = data;
-        this.offset = 0;
-
-        if (this.readUnsignedShort() !== STREAM_MAGIC)   throw new StreamCorruptedException();
-        if (this.readUnsignedShort() !== STREAM_VERSION) throw new StreamCorruptedException();
-    }
-
-    private eof(): boolean {
-        return this.offset === this.data.length;
-    }
-
-    read1(): number {
-        if (this.eof()) {
-            return -1;
-        }
-        return this.read(1)[0];
-    }
-
-    read(length: number): Uint8Array {
-        length = Math.min(length, this.data.length-this.offset);
-        if (length < 0) throw new Error("Can't read a negative number of bytes");
-        const result = this.data.slice(this.offset, this.offset + length);
-        this.offset += length;
-        return result
-    }
-
-    skipBytes(n: number): number {
-        return this.skip(n);
-    }
-
-    private peekByte(): number {
-        if (this.eof()) throw new EOFException();
-        return this.data[this.offset];
-    }
+    // ======================
+    // PrimitiveInput methods
+    // ======================
 
     readBoolean(): boolean {
         return ByteArray.getBoolean(this.readFully(1));
@@ -221,7 +221,7 @@ class ObjectInputStream extends InputStream implements ObjectInput {
     }
 
     // https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#readUTF--
-    readUtf(): string {
+    readUTF(): string {
         const length = this.readUnsignedShort();
         const bytes = this.readFully(length);
 
