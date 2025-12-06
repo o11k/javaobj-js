@@ -329,7 +329,8 @@ class ByteArray {
     }
 
     public static getBoolean(arr: Uint8Array): boolean {
-        return arr[0] != 0;
+        if (arr.length < 1) throw new IndexOutOfBoundsException();
+        return arr[0] !== 0;
     }
 
     public static getByte(arr: Uint8Array): number {
@@ -366,7 +367,7 @@ class ByteArray {
     }
 
     public static getDouble(arr: Uint8Array): number {
-        if (arr.length < 4) throw new IndexOutOfBoundsException();
-        return new DataView(arr.subarray(0, 4).buffer).getFloat32(0, false);
+        if (arr.length < 8) throw new IndexOutOfBoundsException();
+        return new DataView(arr.subarray(0, 8).buffer).getFloat64(0, false);
     }
 }
