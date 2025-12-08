@@ -1,47 +1,47 @@
-const STREAM_MAGIC      = 0xaced;
-const STREAM_VERSION    = 5;
+export const STREAM_MAGIC      = 0xaced;
+export const STREAM_VERSION    = 5;
 
-const TC_NULL           = 0x70;
-const TC_REFERENCE      = 0x71;
-const TC_CLASSDESC      = 0x72;
-const TC_OBJECT         = 0x73;
-const TC_STRING         = 0x74;
-const TC_ARRAY          = 0x75;
-const TC_CLASS          = 0x76;
-const TC_BLOCKDATA      = 0x77;
-const TC_ENDBLOCKDATA   = 0x78;
-const TC_RESET          = 0x79;
-const TC_BLOCKDATALONG  = 0x7A;
-const TC_EXCEPTION      = 0x7B;
-const TC_LONGSTRING     = 0x7C;
-const TC_PROXYCLASSDESC = 0x7D;
-const TC_ENUM           = 0x7E;
+export const TC_NULL           = 0x70;
+export const TC_REFERENCE      = 0x71;
+export const TC_CLASSDESC      = 0x72;
+export const TC_OBJECT         = 0x73;
+export const TC_STRING         = 0x74;
+export const TC_ARRAY          = 0x75;
+export const TC_CLASS          = 0x76;
+export const TC_BLOCKDATA      = 0x77;
+export const TC_ENDBLOCKDATA   = 0x78;
+export const TC_RESET          = 0x79;
+export const TC_BLOCKDATALONG  = 0x7A;
+export const TC_EXCEPTION      = 0x7B;
+export const TC_LONGSTRING     = 0x7C;
+export const TC_PROXYCLASSDESC = 0x7D;
+export const TC_ENUM           = 0x7E;
 
-const baseWireHandle    = 0x7E0000;
+export const baseWireHandle    = 0x7E0000;
 
-const SC_WRITE_METHOD   = 0x01;  // if SC_SERIALIZABLE
-const SC_BLOCK_DATA     = 0x08;  // if SC_EXTERNALIZABLE
-const SC_SERIALIZABLE   = 0x02;
-const SC_EXTERNALIZABLE = 0x04;
-const SC_ENUM           = 0x10;
+export const SC_WRITE_METHOD   = 0x01;  // if SC_SERIALIZABLE
+export const SC_BLOCK_DATA     = 0x08;  // if SC_EXTERNALIZABLE
+export const SC_SERIALIZABLE   = 0x02;
+export const SC_EXTERNALIZABLE = 0x04;
+export const SC_ENUM           = 0x10;
 
 
-class JavaException extends Error {}
-class IOException extends JavaException {}
-class ObjectStreamException extends IOException {}
-class StreamCorruptedException extends ObjectStreamException {}
-class EOFException extends IOException {}
-class UTFDataFormatException extends IOException {}
-class RuntimeException extends JavaException {}
-class IllegalStateException extends RuntimeException {}
-class IndexOutOfBoundsException extends RuntimeException {}
-class OptionalDataException extends ObjectStreamException {}
+export class JavaException extends Error {}
+export class IOException extends JavaException {}
+export class ObjectStreamException extends IOException {}
+export class StreamCorruptedException extends ObjectStreamException {}
+export class EOFException extends IOException {}
+export class UTFDataFormatException extends IOException {}
+export class RuntimeException extends JavaException {}
+export class IllegalStateException extends RuntimeException {}
+export class IndexOutOfBoundsException extends RuntimeException {}
+export class OptionalDataException extends ObjectStreamException {}
 
-class NotImplementedError extends Error {}  // TODO remove before publishing
+export class NotImplementedError extends Error {}  // TODO remove before publishing
 
-const JAVAOBJ_SYMBOL = Symbol("javaobj");
+export const JAVAOBJ_SYMBOL = Symbol("javaobj");
 
-namespace J {
+export namespace J {
     export type Contents = Content[];
     export type Content = Object | BlockData;
     export type BlockData = Uint8Array;
@@ -117,7 +117,7 @@ namespace J {
 
 // Note: interface and class definitions are slightly different to Java
 
-abstract class ByteInput {
+export abstract class ByteInput {
     abstract read1(): number;
 
     read(len: number): Uint8Array {
@@ -141,7 +141,7 @@ abstract class ByteInput {
     }
 }
 
-abstract class PrimitiveInput extends ByteInput {
+export abstract class PrimitiveInput extends ByteInput {
     readBoolean(): boolean {
         return ByteArray.getBoolean(this.readFully(1));
     }
@@ -259,11 +259,7 @@ class HandleTable {
     }
 }
 
-function complete<T>(obj: Partial<T>): T {
-  return obj as T;
-}
-
-class ObjectInputStreamParser extends PrimitiveInput {
+export class ObjectInputStreamParser extends PrimitiveInput {
     private data: Uint8Array;
     private offset: number;
     private handleTable: HandleTable;
@@ -616,12 +612,8 @@ class ObjectInputStreamParser extends PrimitiveInput {
     parseClassAnnotation = this._parseEndBlockTerminatedContents
 }
 
-abstract class ObjectInput extends PrimitiveInput {
-    abstract readObject(): J.Object;
-}
 
-
-class ObjectInputStream extends ObjectInput {
+export class ObjectInputStream extends PrimitiveInput {
     private contents: J.Contents;
     private offset: number;
     private blockOffset: number;
@@ -640,7 +632,7 @@ class ObjectInputStream extends ObjectInput {
         if (!(content instanceof Uint8Array))
             return -1;
         if (this.blockOffset >= content.length) {
-            throw new Error("Illegal state");
+            throw new IllegalStateException("Illegal state");
         }
         const result = content[this.blockOffset++];
         if (this.blockOffset >= content.length) {
@@ -662,7 +654,7 @@ class ObjectInputStream extends ObjectInput {
 }
 
 
-class ByteArray {
+export class ByteArray {
     private static getIntegral(arr: Uint8Array, numBytes: number, signed: boolean): bigint {
         if (arr.length < numBytes) {
             throw new IndexOutOfBoundsException();
