@@ -35,6 +35,7 @@ class UTFDataFormatException extends IOException {}
 class RuntimeException extends JavaException {}
 class IllegalStateException extends RuntimeException {}
 class IndexOutOfBoundsException extends RuntimeException {}
+class OptionalDataException extends ObjectStreamException {}
 
 class NotImplementedError extends Error {}  // TODO remove before publishing
 
@@ -44,7 +45,7 @@ abstract class ByteInput {
     abstract read1(): number;
 
     read(len: number): Uint8Array {
-        len = Math.min(len, 0);
+        len = Math.max(len, 0);
         const result = new Uint8Array(len);
         let i = 0;
         while (i < len) {
@@ -105,9 +106,20 @@ abstract class PrimitiveInput extends ByteInput {
         return ByteArray.getDouble(this.readFully(8));
     }
 
-    // https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#readUTF--
     readUTF(): string {
-        const length = this.readUnsignedShort();
+        return this.readUTFBody(this.readUnsignedShort());
+    }
+
+    readLongUTF(): string {
+        const length = this.readLong();
+        if (length > Number.MAX_SAFE_INTEGER) {
+            throw new NotImplementedError(`string longer than ${Number.MAX_SAFE_INTEGER} bytes`);
+        }
+        return this.readUTFBody(Number(length));
+    }
+
+    // https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#readUTF--
+    readUTFBody(length: number): string {
         const bytes = this.readFully(length);
 
         const resultChars = new Uint16Array(bytes.length);
@@ -141,8 +153,355 @@ abstract class PrimitiveInput extends ByteInput {
             }
         }
 
-        return Array.from(resultChars.subarray(0, resultCharsOffset), String.fromCharCode).join("");
+        return Array.from(resultChars.subarray(0, resultCharsOffset), c => String.fromCharCode(c)).join("");
     }
+}
+
+class HandleTable {
+    private table: Map<number, any>;
+    private currHandle = baseWireHandle;
+
+    constructor() {
+        this.table = new Map();
+    }
+
+    reset(): void {
+        this.table.clear();
+        this.currHandle = baseWireHandle;
+    }
+
+    newHandle(obj: any): number {
+        const handle = this.currHandle++;
+        this.table.set(handle, obj);
+        return handle;
+    }
+
+    getObject(handle: number): any {
+        return this.table.get(handle);
+    }
+}
+
+class ObjectInputStreamParser extends PrimitiveInput {
+    private data: Uint8Array;
+    private offset: number;
+    private handleTable: HandleTable;
+
+    constructor(data: Uint8Array) {
+        super();
+        this.data = data;
+        this.offset = 0;
+        this.handleTable = new HandleTable();
+
+        if (this.readUnsignedShort() !== STREAM_MAGIC) throw new StreamCorruptedException("Missing STREAM_MAGIC");
+        if (this.readUnsignedShort() !== STREAM_VERSION) throw new StreamCorruptedException("Missing STREAM_VERSION");
+    }
+
+    read1(): number {
+        if (this.eof())
+            return -1;
+        return this.data[this.offset++];
+    }
+
+    peek1(): number {
+        if (this.eof())
+            return -1;
+        return this.data[this.offset];
+    }
+
+    eof(): boolean {
+        return this.offset >= this.data.length;
+    }
+
+    parseContents(allowEndBlock=false): any[] {
+        const result = [];
+        let done = false;
+        while (!this.eof() && !done) {
+            const tc = this.peek1();
+            switch (tc) {
+                case TC_BLOCKDATA:
+                case TC_BLOCKDATALONG:
+                    result.push(this.parseBlockData());
+                    break;
+                case TC_OBJECT:
+                case TC_CLASS:
+                case TC_ARRAY:
+                case TC_STRING:
+                case TC_ENUM:
+                case TC_CLASSDESC:
+                case TC_PROXYCLASSDESC:
+                case TC_REFERENCE:
+                case TC_NULL:
+                case TC_EXCEPTION:
+                    result.push(this.parseObject());
+                    break;
+                case TC_RESET:
+                    // This is technically an "object", but in practice it doesn't matter
+                    this.handleTable.reset();
+                    break;
+                case TC_ENDBLOCKDATA:
+                    if (allowEndBlock) {
+                        done = true;
+                        break;
+                    }
+                default:
+                    throw new StreamCorruptedException("Unknown content tc: " + tc);
+            }
+        }
+        return result;
+    }
+
+    parseBlockData(): Uint8Array {
+        const tc = this.read1();
+        let size: number;
+        switch (tc) {
+            case TC_BLOCKDATA:
+                size = this.readUnsignedByte();
+                break;
+            case TC_BLOCKDATALONG:
+                size = this.readInt();
+                break;
+            default:
+                throw new StreamCorruptedException("Unknown block data tc: " + tc);
+        }
+        return this.readFully(size);
+    }
+
+    parseObject(): any {
+        const tc = this.peek1();
+        switch (tc) {
+            case TC_OBJECT:
+                return this.parseNewObject();
+            case TC_CLASS:
+                return this.parseNewClass();
+            case TC_ARRAY:
+                return this.parseNewArray();
+            case TC_STRING:
+            case TC_LONGSTRING:
+                return this.parseNewString();
+            case TC_ENUM:
+                return this.parseNewEnum();
+            case TC_CLASSDESC:
+            case TC_PROXYCLASSDESC:
+                return this.parseNewClassDesc();
+            case TC_REFERENCE:
+                return this.parsePrevObject();
+            case TC_NULL:
+                this.read1();
+                return null;
+            case TC_EXCEPTION:
+                return this.parseException();
+            default:
+                throw new StreamCorruptedException("Unknown object tc: " + tc);
+        }
+    }
+
+    parseNewObject(): any {
+        const tc = this.read1();
+        if (tc !== TC_OBJECT) throw new StreamCorruptedException("Unknown new object tc: " + tc);
+        const result: any = {};
+        result.classDesc = this.parseClassDesc();
+        result.handle = this.handleTable.newHandle(result);
+        
+        const classChain = [];
+        let currClass = result.classDesc;
+        while (currClass !== null) {
+            classChain.push(currClass);
+            currClass = currClass.classDescInfo.super;
+        }
+        classChain.reverse();
+
+        result.classdata = [];
+        for (const classDesc of classChain) {
+            const currData: any = {};
+            const flags = classDesc.classDescInfo.flags;
+
+            if ((SC_SERIALIZABLE & flags) && !(SC_WRITE_METHOD & flags)) {
+                currData.values = this.parseValues(classDesc);
+            } else if ((SC_SERIALIZABLE & flags) && !(SC_WRITE_METHOD & flags)) {
+                currData.values = this.parseValues(classDesc);
+                currData.objectAnnotation = this.parseObjectAnnotation();
+            } else if ((SC_EXTERNALIZABLE & flags) && !(SC_BLOCK_DATA & flags)) {
+                throw new NotImplementedError("PROTOCOL_VERSION_1 Externalizable object");
+            } else if ((SC_EXTERNALIZABLE & flags) && !(SC_BLOCK_DATA & flags)) {
+                currData.objectAnnotation = this.parseObjectAnnotation();
+            } else {
+                throw new StreamCorruptedException("Unknown classDescFlags: " + flags);
+            }
+            result.classdata.push(currData);
+        }
+        return result;
+    }
+
+    parseValues(classDesc: any): any {
+        const fields = classDesc.classDescInfo.fields;
+        const values = [];
+        for (const field of fields) {
+            values.push(this.parseValue(field.typecode));
+        }
+        return values;
+    }
+
+    parseValue(typecode: string): any {
+        switch (typecode) {
+            case '[':
+            case 'L':
+                // TODO: type checking
+                return this.parseObject();
+            case 'B': return this.readByte();
+            case 'C': return this.readChar();
+            case 'D': return this.readDouble();
+            case 'F': return this.readFloat();
+            case 'I': return this.readInt();
+            case 'J': return this.readLong();
+            case 'S': return this.readShort();
+            case 'Z': return this.readBoolean();
+            default:
+                throw new StreamCorruptedException("Unkown field value typecode: " + typecode);
+        }
+    }
+
+    parseNewClass(): any {
+        const tc = this.read1();
+        if (tc !== TC_CLASS) throw new StreamCorruptedException("Unknown reference tc: " + tc);
+
+        const result: any = {};
+        result.classDesc = this.parseClassDesc();
+        result.handle = this.handleTable.newHandle(result);
+        return result;
+    }
+
+    parseNewArray(): any[] {
+        const tc = this.read1();
+        if (tc !== TC_ARRAY) throw new StreamCorruptedException("Unknown array tc: " + tc);
+
+        const result: any[] = [];
+        const classDesc = this.parseClassDesc();
+        if (!classDesc.className.startsWith("["))
+            throw new StreamCorruptedException("Array class name doesn't begin with [: " + classDesc.className);
+        const typecode = classDesc.className[1];
+        this.handleTable.newHandle(result);
+        const size = this.readInt();
+        for (let i=0; i<size; i++) {
+            result.push(this.parseValue(typecode));
+        }
+        return result;
+    }
+
+    parseNewString(): string {
+        const tc = this.read1();
+        let result: string;
+        switch (tc) {
+            case TC_STRING:
+                result = this.readUTF();
+                break;
+            case TC_LONGSTRING:
+                result = this.readLongUTF();
+                break;
+            default:
+                throw new StreamCorruptedException("Unknown string tc: " + tc);
+        }
+        this.handleTable.newHandle(result);
+        return result;
+    }
+
+    parseNewEnum(): any {
+        const tc = this.read1();
+        if (tc !== TC_ENUM) throw new StreamCorruptedException("Unknown enum tc: " + tc);
+        const result: any = {};
+        result.handle = this.handleTable.newHandle(result);
+        const enumConstantName = this.parseObject();
+        if (typeof enumConstantName !== "string") {
+            throw new StreamCorruptedException("Enum name must be a String object");
+        }
+        result.enumConstantName = enumConstantName;
+        return result;
+    }
+
+    parseNewClassDesc(): any {
+        const tc = this.read1();
+        switch (tc) {
+            case TC_CLASSDESC: {
+                const result: any = {};
+                result.className = this.readUTF();
+                result.serialVersionUID = this.readLong();
+                result.handle = this.handleTable.newHandle(result);
+                result.classDescInfo = this.parseClassDescInfo();
+                return result;
+            }
+            case TC_PROXYCLASSDESC:
+                throw new NotImplementedError("proxy classes");
+            default:
+                throw new StreamCorruptedException("Unknown new class desc tc: " + tc);
+        }
+    }
+
+    parseClassDescInfo(): any {
+        const result: any = {};
+        result.flags = this.readUnsignedByte();
+        result.fields = [];
+        const fieldsCount = this.readShort();
+        for (let i=0; i<fieldsCount; i++) {
+            const field: any = {};
+            field.typecode = String.fromCharCode(this.readUnsignedByte());
+            field.fieldName = this.readUTF();
+            switch (field.typecode) {
+                case '[': case 'L':
+                    const className = this.parseObject();
+                    if (typeof className !== "string")
+                        throw new StreamCorruptedException("Field class name must be a String object");
+                    field.className = className;
+                    break;
+                case 'B': case 'C': case 'D': case 'F': case 'I': case 'J': case 'S': case 'Z':
+                    break;
+                default:
+                    throw new StreamCorruptedException("Unkown field typecode: " + field.typecode);
+            }
+            result.fields.push(field);
+        }
+        result.classAnnotation = this.parseClassAnnotation();
+        result.super = this.parseClassDesc();
+        return result;
+    }
+
+    parseClassDesc(): any {
+        const tc = this.peek1();
+        switch (tc) {
+            case TC_CLASSDESC:
+            case TC_PROXYCLASSDESC:
+                return this.parseNewClassDesc();
+            case TC_NULL:
+                this.read1();
+                return null;
+            case TC_REFERENCE:
+                // TODO: check that's it's a classdesc
+                return this.parsePrevObject();
+            default:
+                throw new StreamCorruptedException("Unknown class desc tc: " + tc);
+        }
+    }
+
+    parsePrevObject(): any {
+        const tc = this.read1();
+        if (tc !== TC_REFERENCE) throw new StreamCorruptedException("Unknown reference tc: " + tc);
+        const handle = this.readInt();
+        return this.handleTable.getObject(handle);
+    }
+
+    parseException(): any {
+        const tc = this.read1();
+        if (tc !== TC_EXCEPTION) throw new StreamCorruptedException("Unknown exception tc: " + tc);
+        throw new NotImplementedError("Exceptions in stream");
+    }
+
+    _parseEndBlockTerminatedContents(): any[] {
+        const contents = this.parseContents(true);
+        const endBlock = this.read1();
+        if (endBlock !== TC_ENDBLOCKDATA) throw new StreamCorruptedException("Expected TC_ENDBLOCKDATA");
+        return contents;
+    }
+
+    parseObjectAnnotation = this._parseEndBlockTerminatedContents
+    parseClassAnnotation = this._parseEndBlockTerminatedContents
 }
 
 abstract class ObjectInput extends PrimitiveInput {
@@ -151,58 +510,42 @@ abstract class ObjectInput extends PrimitiveInput {
 
 
 class ObjectInputStream extends ObjectInput {
-    private data: Uint8Array;
+    private contents: any[];
     private offset: number;
-
-    private remainingBlock: number;
+    private blockOffset: number;
 
     constructor(data: Uint8Array) {
         super();
-        this.data = data;
+        this.contents = new ObjectInputStreamParser(data).parseContents();
         this.offset = 0;
-        this.remainingBlock = 0;
+        this.blockOffset = 0;
+    }
+
+    read1() {
+        if (this.offset >= this.contents.length)
+            return -1;
+        const content = this.contents[this.offset];
+        if (!(content instanceof Uint8Array))
+            return -1;
+        if (this.blockOffset >= content.length) {
+            throw new Error("Illegal state");
+        }
+        const result = content[this.blockOffset++];
+        if (this.blockOffset >= content.length) {
+            this.offset++;
+            this.blockOffset = 0;
+        }
+        return result;
     }
 
     readObject(): any {
-        switch (this.peekByte()) {
-            case TC_OBJECT:
-                throw new NotImplementedError();
-                break;
-            case TC_CLASS:
-                throw new NotImplementedError();
-                break;
-            case TC_ARRAY:
-                throw new NotImplementedError();
-                break;
-            case TC_STRING:
-            case TC_LONGSTRING:
-                throw new NotImplementedError();
-                break;
-            case TC_ENUM:
-                throw new NotImplementedError();
-                break;
-            case TC_CLASSDESC:
-            case TC_PROXYCLASSDESC:
-                throw new NotImplementedError();
-                break;
-            case TC_REFERENCE:
-                throw new NotImplementedError();
-                break;
-            case TC_NULL:
-                throw new NotImplementedError();
-                break;
-            case TC_EXCEPTION:
-                throw new NotImplementedError();
-                break;
-            default:
-                throw new StreamCorruptedException();
-        }
-    }
-
-    registerHandler<T, S>(className: string, handler: (ois: ObjectInputStream, initial: S, classDesc: ClassDesc) => T, initializer: () => S): void;
-    registerHandler<T>(className: string, handler: (ois: ObjectInputStream, initial: {}, classDesc: ClassDesc) => T): void;
-    registerHandler<T, S>(className: string, handler: (ois: ObjectInputStream, initial: S, classDesc: ClassDesc) => T, initializer?: () => S): void {
-
+        if (this.offset >= this.contents.length)
+            throw new EOFException();
+        const content = this.contents[this.offset];
+        if (content instanceof Uint8Array)
+            throw new OptionalDataException();
+        this.offset++;
+        return content;
     }
 }
 
