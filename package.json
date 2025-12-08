@@ -5,22 +5,32 @@
   "main": "dist/index.js",
   "types": "dist/index.d.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "build": "tsc"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/o11k/javaobj-js.git"
   },
-  "keywords": ["java", "serialize", "deserialize"],
+  "keywords": [
+    "java",
+    "serialize",
+    "deserialize"
+  ],
   "author": "o11k",
   "license": "MIT",
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "bugs": {
     "url": "https://github.com/o11k/javaobj-js/issues"
   },
   "homepage": "https://github.com/o11k/javaobj-js#readme",
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"
   }
 }
