@@ -39,6 +39,82 @@ class OptionalDataException extends ObjectStreamException {}
 
 class NotImplementedError extends Error {}  // TODO remove before publishing
 
+const JAVAOBJ_SYMBOL = Symbol("javaobj");
+
+namespace J {
+    export type Contents = Content[];
+    export type Content = Object | BlockData;
+    export type BlockData = Uint8Array;
+    export type Object = 
+        ObjectInstance
+      | Class
+      | Array
+      | String
+      | Enum
+      | ClassDesc
+    //| PrevObject
+      | null
+    //| Exception
+    export type Exception = Object
+
+    export type ObjectInstance = {
+        [JAVAOBJ_SYMBOL]: ObjectInstanceInternal,
+        [key: string | number | symbol]: any,
+    }
+
+    export type ObjectInstanceInternal = {
+        classDesc: ClassDesc | null,
+        classData: Map<string, ClassData>
+    }
+    export type ClassData =
+        {values: Values, annotation?: Contents}
+      | {values?: Values, annotation: Contents}
+    export type Values = Map<string, Object | Primitive>
+
+    // TODO: unify with ClassDesc?
+    export type Class = {
+        type: "class"
+        classDesc: ClassDesc | null,
+    }
+
+    export type Array = (Object | Primitive)[] & {
+        [JAVAOBJ_SYMBOL]: {classDesc: ClassDesc | null}
+    };
+
+    export type Enum = {
+        type: "enum",
+        classDesc: ClassDesc | null,
+        name: string,
+    }
+
+    export type ClassDesc = NonProxyClassDesc //| ProxyClassDesc
+    export type NonProxyClassDesc = {
+        type: "classDesc",
+        proxy: false,
+        className: string,
+        serialVersionUID: bigint,
+        flags: number,
+        fields: FieldDesc[],
+        annotation: Contents,
+        super: ClassDesc | null,
+    }
+    //export type ProxyClassDesc = unknown  // TODO
+
+    export type FieldDesc = PrimitiveDesc | ObjectDesc
+    export type FieldTypecode = 'B' | 'C' | 'D' | 'F' | 'I' | 'J' | 'S' | 'Z' | '[' | 'L'
+    export type PrimitiveDesc = {
+        typecode: 'B' | 'C' | 'D' | 'F' | 'I' | 'J' | 'S' | 'Z',
+        fieldName: string,
+    }
+    export type ObjectDesc = {
+        typecode: 'L' | '[',
+        fieldName: string,
+        className: String,
+    }
+    export type Primitive = number | bigint | boolean | string //=char
+    export type String = string
+}
+
 // Note: interface and class definitions are slightly different to Java
 
 abstract class ByteInput {
@@ -158,7 +234,7 @@ abstract class PrimitiveInput extends ByteInput {
 }
 
 class HandleTable {
-    private table: Map<number, any>;
+    private table: Map<number, J.Object>;
     private currHandle = baseWireHandle;
 
     constructor() {
@@ -170,15 +246,21 @@ class HandleTable {
         this.currHandle = baseWireHandle;
     }
 
-    newHandle(obj: any): number {
+    newHandle(obj: J.Object): number {
         const handle = this.currHandle++;
         this.table.set(handle, obj);
         return handle;
     }
 
-    getObject(handle: number): any {
-        return this.table.get(handle);
+    getObject(handle: number): J.Object {
+        const result = this.table.get(handle);
+        if (result === undefined) throw new StreamCorruptedException("Object handle doesn't exist: " + handle);
+        return result;
     }
+}
+
+function complete<T>(obj: Partial<T>): T {
+  return obj as T;
 }
 
 class ObjectInputStreamParser extends PrimitiveInput {
@@ -212,7 +294,7 @@ class ObjectInputStreamParser extends PrimitiveInput {
         return this.offset >= this.data.length;
     }
 
-    parseContents(allowEndBlock=false): any[] {
+    parseContents(allowEndBlock=false): J.Contents {
         const result = [];
         let done = false;
         while (!this.eof() && !done) {
@@ -250,7 +332,7 @@ class ObjectInputStreamParser extends PrimitiveInput {
         return result;
     }
 
-    parseBlockData(): Uint8Array {
+    parseBlockData(): J.BlockData {
         const tc = this.read1();
         let size: number;
         switch (tc) {
@@ -266,7 +348,7 @@ class ObjectInputStreamParser extends PrimitiveInput {
         return this.readFully(size);
     }
 
-    parseObject(): any {
+    parseObject(): J.Object {
         const tc = this.peek1();
         switch (tc) {
             case TC_OBJECT:
@@ -295,53 +377,65 @@ class ObjectInputStreamParser extends PrimitiveInput {
         }
     }
 
-    parseNewObject(): any {
+    parseNewObject(): J.ObjectInstance {
         const tc = this.read1();
         if (tc !== TC_OBJECT) throw new StreamCorruptedException("Unknown new object tc: " + tc);
-        const result: any = {};
-        result.classDesc = this.parseClassDesc();
-        result.handle = this.handleTable.newHandle(result);
-        
+        const result: Partial<J.ObjectInstance> = {};
+        const classDesc = this.parseClassDesc();
+        const handle = this.handleTable.newHandle(result as J.ObjectInstance);
+
+        const internal = this._parseObjectInternal(classDesc);
+        return Object.assign(result, {[JAVAOBJ_SYMBOL]: internal})
+    }
+
+    _parseObjectInternal(classDesc: J.ClassDesc | null): J.ObjectInstanceInternal {
+        const result: Partial<J.ObjectInstanceInternal> = {};
+
         const classChain = [];
-        let currClass = result.classDesc;
+        let currClass = classDesc;
         while (currClass !== null) {
             classChain.push(currClass);
-            currClass = currClass.classDescInfo.super;
+            currClass = currClass.super;
         }
         classChain.reverse();
 
-        result.classdata = [];
+        const classData = [];
         for (const classDesc of classChain) {
-            const currData: any = {};
-            const flags = classDesc.classDescInfo.flags;
+            let currData: J.ClassData;
+            const flags = classDesc.flags;
 
             if ((SC_SERIALIZABLE & flags) && !(SC_WRITE_METHOD & flags)) {
-                currData.values = this.parseValues(classDesc);
+                currData = {
+                    values: this.parseValues(classDesc)
+                };
             } else if ((SC_SERIALIZABLE & flags) && !(SC_WRITE_METHOD & flags)) {
-                currData.values = this.parseValues(classDesc);
-                currData.objectAnnotation = this.parseObjectAnnotation();
+                currData = {
+                    values: this.parseValues(classDesc),
+                    annotation: this.parseObjectAnnotation(),
+                }
             } else if ((SC_EXTERNALIZABLE & flags) && !(SC_BLOCK_DATA & flags)) {
                 throw new NotImplementedError("PROTOCOL_VERSION_1 Externalizable object");
             } else if ((SC_EXTERNALIZABLE & flags) && !(SC_BLOCK_DATA & flags)) {
-                currData.objectAnnotation = this.parseObjectAnnotation();
+                currData = {
+                    annotation: this.parseObjectAnnotation(),
+                }
             } else {
                 throw new StreamCorruptedException("Unknown classDescFlags: " + flags);
             }
-            result.classdata.push(currData);
+            classData.push(currData);
+        }
+        return Object.assign(result, {classDesc, classData});
+    }
+
+    parseValues(classDesc: J.ClassDesc): J.Values {
+        const result: J.Values = new Map();
+        for (const field of classDesc.fields) {
+            result.set(field.fieldName, this.parseValue(field.typecode));
         }
         return result;
     }
 
-    parseValues(classDesc: any): any {
-        const fields = classDesc.classDescInfo.fields;
-        const values = [];
-        for (const field of fields) {
-            values.push(this.parseValue(field.typecode));
-        }
-        return values;
-    }
-
-    parseValue(typecode: string): any {
+    parseValue(typecode: string): J.Object | J.Primitive {
         switch (typecode) {
             case '[':
             case 'L':
@@ -360,34 +454,41 @@ class ObjectInputStreamParser extends PrimitiveInput {
         }
     }
 
-    parseNewClass(): any {
+    parseNewClass(): J.Class {
         const tc = this.read1();
         if (tc !== TC_CLASS) throw new StreamCorruptedException("Unknown reference tc: " + tc);
 
-        const result: any = {};
-        result.classDesc = this.parseClassDesc();
-        result.handle = this.handleTable.newHandle(result);
+        const result: J.Class = {
+            type: "class",
+            classDesc: this.parseClassDesc(),
+        };
+        const handle = this.handleTable.newHandle(result);
+        // @ts-expect-error
+        result.handle = handle;
         return result;
     }
 
-    parseNewArray(): any[] {
+    parseNewArray(): J.Array {
         const tc = this.read1();
         if (tc !== TC_ARRAY) throw new StreamCorruptedException("Unknown array tc: " + tc);
 
-        const result: any[] = [];
+        const result: (J.Object | J.Primitive)[] = [];
         const classDesc = this.parseClassDesc();
-        if (!classDesc.className.startsWith("["))
-            throw new StreamCorruptedException("Array class name doesn't begin with [: " + classDesc.className);
+        if (classDesc === null || !classDesc.className.startsWith("["))
+            throw new StreamCorruptedException("Array class name doesn't begin with [: " + classDesc!.className);
         const typecode = classDesc.className[1];
-        this.handleTable.newHandle(result);
+        const handle = this.handleTable.newHandle(result as J.Array);
         const size = this.readInt();
         for (let i=0; i<size; i++) {
             result.push(this.parseValue(typecode));
         }
-        return result;
+        return Object.assign(result, {[JAVAOBJ_SYMBOL]: {
+            classDesc,
+            handle,
+        }});
     }
 
-    parseNewString(): string {
+    parseNewString(): J.String {
         const tc = this.read1();
         let result: string;
         switch (tc) {
@@ -404,66 +505,73 @@ class ObjectInputStreamParser extends PrimitiveInput {
         return result;
     }
 
-    parseNewEnum(): any {
+    parseNewEnum(): J.Enum {
         const tc = this.read1();
         if (tc !== TC_ENUM) throw new StreamCorruptedException("Unknown enum tc: " + tc);
-        const result: any = {};
-        result.handle = this.handleTable.newHandle(result);
-        const enumConstantName = this.parseObject();
-        if (typeof enumConstantName !== "string") {
+        const result: Partial<J.Enum> = {};
+        const classDesc = this.parseClassDesc();
+        const handle = this.handleTable.newHandle(result as J.Enum)
+        const name = this.parseObject();
+        if (typeof name !== "string") {
             throw new StreamCorruptedException("Enum name must be a String object");
         }
-        result.enumConstantName = enumConstantName;
-        return result;
+        return Object.assign(result, {type: "enum", classDesc, name});
     }
 
-    parseNewClassDesc(): any {
+    parseNewClassDesc(): J.ClassDesc {
         const tc = this.read1();
-        switch (tc) {
-            case TC_CLASSDESC: {
-                const result: any = {};
-                result.className = this.readUTF();
-                result.serialVersionUID = this.readLong();
-                result.handle = this.handleTable.newHandle(result);
-                result.classDescInfo = this.parseClassDescInfo();
-                return result;
-            }
-            case TC_PROXYCLASSDESC:
-                throw new NotImplementedError("proxy classes");
-            default:
-                throw new StreamCorruptedException("Unknown new class desc tc: " + tc);
-        }
+        if (tc === TC_PROXYCLASSDESC) throw new NotImplementedError("proxy classes");
+        if (tc !== TC_CLASSDESC) throw new StreamCorruptedException("Unknown new class desc tc: " + tc);
+
+        const result = {
+            type: "classDesc" as "classDesc", 
+            proxy: false as false
+        };
+        const className = this.readUTF();
+        const serialVersionUID = this.readLong();
+        const handle = this.handleTable.newHandle(result as J.ClassDesc);
+        const flags = this.readUnsignedByte();
+        const fields = this.parseFields();
+        const annotation = this.parseClassAnnotation();
+        const super_ = this.parseClassDesc();
+        return Object.assign(result, {
+            className,
+            serialVersionUID,
+            handle,
+            flags,
+            fields,
+            annotation,
+            super: super_
+        });
     }
 
-    parseClassDescInfo(): any {
-        const result: any = {};
-        result.flags = this.readUnsignedByte();
-        result.fields = [];
-        const fieldsCount = this.readShort();
-        for (let i=0; i<fieldsCount; i++) {
-            const field: any = {};
-            field.typecode = String.fromCharCode(this.readUnsignedByte());
-            field.fieldName = this.readUTF();
-            switch (field.typecode) {
+    parseFields(): J.FieldDesc[] {
+        const fields: J.FieldDesc[] = [];
+        const fieldCount = this.readShort();
+        for (let i=0; i<fieldCount; i++) {
+            const typecode = String.fromCharCode(this.readUnsignedByte());
+            const fieldName = this.readUTF();
+            let field: J.FieldDesc;
+            
+            switch (typecode) {
                 case '[': case 'L':
                     const className = this.parseObject();
                     if (typeof className !== "string")
                         throw new StreamCorruptedException("Field class name must be a String object");
-                    field.className = className;
+                    field = {typecode, fieldName, className};
                     break;
                 case 'B': case 'C': case 'D': case 'F': case 'I': case 'J': case 'S': case 'Z':
+                    field = {typecode, fieldName};
                     break;
                 default:
-                    throw new StreamCorruptedException("Unkown field typecode: " + field.typecode);
+                    throw new StreamCorruptedException("Unkown field typecode: " + typecode);
             }
-            result.fields.push(field);
+            fields.push(field);
         }
-        result.classAnnotation = this.parseClassAnnotation();
-        result.super = this.parseClassDesc();
-        return result;
+        return fields;
     }
 
-    parseClassDesc(): any {
+    parseClassDesc(): J.ClassDesc | null {
         const tc = this.peek1();
         switch (tc) {
             case TC_CLASSDESC:
@@ -474,26 +582,30 @@ class ObjectInputStreamParser extends PrimitiveInput {
                 return null;
             case TC_REFERENCE:
                 // TODO: check that's it's a classdesc
-                return this.parsePrevObject();
+                const obj = this.parsePrevObject();
+                if (typeof obj !== "object" || obj === null || obj instanceof Array || obj.type !== "classDesc")
+                    throw new StreamCorruptedException();
+                // @ts-expect-error  TODO change types to classes
+                return obj;
             default:
                 throw new StreamCorruptedException("Unknown class desc tc: " + tc);
         }
     }
 
-    parsePrevObject(): any {
+    parsePrevObject(): J.Object {
         const tc = this.read1();
         if (tc !== TC_REFERENCE) throw new StreamCorruptedException("Unknown reference tc: " + tc);
         const handle = this.readInt();
         return this.handleTable.getObject(handle);
     }
 
-    parseException(): any {
+    parseException(): J.Exception {
         const tc = this.read1();
         if (tc !== TC_EXCEPTION) throw new StreamCorruptedException("Unknown exception tc: " + tc);
         throw new NotImplementedError("Exceptions in stream");
     }
 
-    _parseEndBlockTerminatedContents(): any[] {
+    _parseEndBlockTerminatedContents(): J.Contents {
         const contents = this.parseContents(true);
         const endBlock = this.read1();
         if (endBlock !== TC_ENDBLOCKDATA) throw new StreamCorruptedException("Expected TC_ENDBLOCKDATA");
@@ -505,12 +617,12 @@ class ObjectInputStreamParser extends PrimitiveInput {
 }
 
 abstract class ObjectInput extends PrimitiveInput {
-    abstract readObject(): any;
+    abstract readObject(): J.Object;
 }
 
 
 class ObjectInputStream extends ObjectInput {
-    private contents: any[];
+    private contents: J.Contents;
     private offset: number;
     private blockOffset: number;
 
@@ -538,7 +650,7 @@ class ObjectInputStream extends ObjectInput {
         return result;
     }
 
-    readObject(): any {
+    readObject(): J.Object {
         if (this.offset >= this.contents.length)
             throw new EOFException();
         const content = this.contents[this.offset];
