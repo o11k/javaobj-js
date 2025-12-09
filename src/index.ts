@@ -381,6 +381,14 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         const handle = this.handleTable.newHandle(result as J.ObjectInstance);
 
         const internal = this._parseObjectInternal(classDesc);
+        // @ts-expect-error
+        internal.handle = handle;
+
+        for (const currData of internal.classData.values()) {
+            for (const [fieldName, fieldValue] of currData.values ?? new Map() as J.Values) {
+                result[fieldName] = fieldValue;
+            }
+        }
         return Object.assign(result, {[JAVAOBJ_SYMBOL]: internal})
     }
 
