@@ -669,11 +669,9 @@ export class ByteArray {
             result += BigInt(byte);
         }
         if (signed) {
-            const signMask = 1 << 7;
-            const signBit = numBytes > 0 && ((bytes[0] & signMask) !== 0);
-            if (signBit) {
-                const modulus = 1n << BigInt(numBytes * 8 - 1);
-                result -= modulus;
+            const topBit = 1n << BigInt(numBytes * 8 - 1);
+            if ((result & topBit) !== 0n) {
+                result -= 1n << BigInt(numBytes * 8);
             }
         }
         return result;

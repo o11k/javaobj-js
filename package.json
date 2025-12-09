@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.js",
   "scripts": {
+    "test-gen": "cd tests && rimraf tmp && mkdirp tmp && javac -d tmp GenerateTests.java && cd tmp && java GenerateTests && cd ../.. && jest",
     "test": "jest",
     "build": "tsc"
   },
@@ -29,7 +30,10 @@
   "homepage": "https://github.com/o11k/javaobj-js#readme",
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "@types/node": "^24.10.2",
     "jest": "^30.2.0",
+    "mkdirp": "^3.0.1",
+    "rimraf": "^6.1.2",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"
   }
