@@ -1,10 +1,13 @@
+package com.o11k;
+
 import java.io.*;
 import java.util.*;
 
 public class GenerateTests {
     public static void main(String[] args) throws Exception {
-        final FileWriter outExpected = new FileWriter("expected.txt");
-        final FileOutputStream outSerialized = new FileOutputStream("serialized.ser");
+        new File("tests/tmp").mkdirs();
+        final FileWriter outExpected = new FileWriter("tests/tmp/expected.txt");
+        final FileOutputStream outSerialized = new FileOutputStream("tests/tmp/serialized.ser");
         final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
         final Random rnd = new Random();
 
