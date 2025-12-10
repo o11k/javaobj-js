@@ -4,26 +4,34 @@ import java.io.*;
 import java.util.*;
 
 public class GenerateTests {
+    static final float CHANCE_NAN = 0.05f;
+    static final float CHANCE_INFINITY = 0.05f;
+    static final float CHANCE_SUBNORMAL = 0.05f;
+    static final float CHANCE_ZERO = 0.05f;
+
+    static final int NUM_ITEMS_TO_WRITE = 10_000;
+
+    static final String PATH_DIR = "tests/tmp";
+    static final String PATH_TXT = PATH_DIR + "/expected.txt";
+    static final String PATH_SER = PATH_DIR + "/serialized.ser";
+
     static byte nextByte(Random rnd) { byte[] bs = {0}; rnd.nextBytes(bs); return bs[0]; }
     static char nextChar(Random rnd) { return (char)rnd.nextInt(1 << 16); }
     static double nextDouble(Random rnd) {
         long dBits = rnd.nextLong();
         final long dExponentMask = 0b0__1111_1111_111__0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000L;
         final long dFractionMask = 0b0__0000_0000_000__1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111L;
-        if (rnd.nextFloat() < 0.10) {
-            // ~5% chance of NaN
+        final float choice = rnd.nextFloat();
+        if (choice < (CHANCE_NAN)) {
             dBits |= dExponentMask;
-            // ~5% chance of +-Infinity
-            if (rnd.nextFloat() < 0.50) {
-                dBits &= ~dFractionMask;
-            }
-        } else if (rnd.nextFloat() < 0.10) {
-            // ~5% chance of subnormal
+        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY)) {
+            dBits |= dExponentMask;
+            dBits &= ~dFractionMask;
+        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL)) {
             dBits &= ~dExponentMask;
-            // ~5% chance of +-0
-            if (rnd.nextFloat() < 0.50) {
-                dBits &= ~dFractionMask;
-            }
+        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL + CHANCE_ZERO)) {
+            dBits &= ~dExponentMask;
+            dBits &= ~dFractionMask;
         }
         return Double.longBitsToDouble(dBits);
     }
@@ -31,20 +39,17 @@ public class GenerateTests {
         int fBits = rnd.nextInt();
         final int fExponentMask = 0b0__1111_1111__0000_0000_0000_0000_0000_000;
         final int fFractionMask = 0b0__0000_0000__1111_1111_1111_1111_1111_111;
-        if (rnd.nextFloat() < 0.10) {
-            // ~5% chance of NaN
+        final float choice = rnd.nextFloat();
+        if (choice < (CHANCE_NAN)) {
             fBits |= fExponentMask;
-            // ~5% chance of +-Infinity
-            if (rnd.nextFloat() < 0.50) {
-                fBits &= ~fFractionMask;
-            }
-        } else if (rnd.nextFloat() < 0.10) {
-            // ~5% chance of subnormal
+        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY)) {
+            fBits |= fExponentMask;
+            fBits &= ~fFractionMask;
+        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL)) {
             fBits &= ~fExponentMask;
-            // ~5% chance of +-0
-            if (rnd.nextFloat() < 0.50) {
-                fBits &= ~fFractionMask;
-            }
+        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL + CHANCE_ZERO)) {
+            fBits &= ~fExponentMask;
+            fBits &= ~fFractionMask;
         }
         return Float.intBitsToFloat(fBits);
     }
@@ -54,15 +59,15 @@ public class GenerateTests {
     static boolean nextBoolean(Random rnd) { return rnd.nextBoolean(); }
 
     public static void main(String[] args) throws Exception {
-        new File("tests/tmp").mkdirs();
-        final FileWriter outExpected = new FileWriter("tests/tmp/expected.txt");
-        final FileOutputStream outSerialized = new FileOutputStream("tests/tmp/serialized.ser");
+        new File(PATH_DIR).mkdirs();
+        final FileWriter outExpected = new FileWriter(PATH_TXT);
+        final FileOutputStream outSerialized = new FileOutputStream(PATH_SER);
         final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
         final Random rnd = new Random();
 
         final char[] typecodes = {'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z'};
 
-        for (int i=0; i<10_000; i++) {
+        for (int i=0; i<NUM_ITEMS_TO_WRITE; i++) {
             char typecode = typecodes[rnd.nextInt(typecodes.length)];
 
             switch (typecode) {

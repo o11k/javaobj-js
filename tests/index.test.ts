@@ -11,9 +11,14 @@ describe("example", () => {
     })
 })
 
+
+
 test("read primitives", () => {
-    console.log(process.cwd());
-    const streamBytes = new Uint8Array(fs.readFileSync("tests/tmp/serialized.ser"));
+    const PATH_DIR = "tests/tmp";
+    const PATH_TXT = PATH_DIR + "/expected.txt";
+    const PATH_SER = PATH_DIR + "/serialized.ser";
+
+    const streamBytes = new Uint8Array(fs.readFileSync(PATH_SER));
     const ois = new ObjectInputStream(streamBytes);
 
     const methods = Object.freeze({
@@ -27,7 +32,7 @@ test("read primitives", () => {
         Z: ois.readBoolean.bind(ois),
     } as const)
 
-    const expectedLines = fs.readFileSync("tests/tmp/expected.txt", "utf-8").split("\n");
+    const expectedLines = fs.readFileSync(PATH_TXT, "utf-8").split("\n");
     for (let i=0; i<expectedLines.length; i++) {
         const expectedLine = expectedLines[i];
         if (expectedLine.length === 0) continue;
@@ -47,22 +52,3 @@ test("read primitives", () => {
         expect(found).toBe(expected);
     }
 })
-
-function splitUint8Array(arr: Uint8Array, delimiter: number): Uint8Array[] {
-  const result = [];
-  let start = 0;
-
-  for (let i = 0; i < arr.length; i++) {
-    if (arr[i] === delimiter) {
-      result.push(arr.subarray(start, i));
-      start = i + 1;
-    }
-  }
-
-  // Push remaining part
-  if (start < arr.length) {
-    result.push(arr.subarray(start));
-  }
-
-  return result;
-}
