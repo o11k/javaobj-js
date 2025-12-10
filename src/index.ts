@@ -290,39 +290,54 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return this.offset >= this.data.length;
     }
 
-    public parseContents(allowEndBlock=false): J.Contents {
+    public nextContent(): J.Content {
+        let tc = this.peek1();
+
+        // This is technically an "object" and not a "content", but in practice it doesn't matter
+        while (tc === TC_RESET) {
+            this.handleTable.reset();
+            this.read1();
+            tc = this.peek1();
+        }
+
+        if (tc === -1)
+            throw new EOFException();
+
+        switch (tc) {
+            case TC_BLOCKDATA:
+            case TC_BLOCKDATALONG:
+                return this.parseBlockData();
+            case TC_OBJECT:
+            case TC_CLASS:
+            case TC_ARRAY:
+            case TC_STRING:
+            case TC_ENUM:
+            case TC_CLASSDESC:
+            case TC_PROXYCLASSDESC:
+            case TC_REFERENCE:
+            case TC_NULL:
+            case TC_EXCEPTION:
+                return this.parseObject();
+            default:
+                throw new StreamCorruptedException("Unknown content tc: " + tc);
+        }
+    }
+
+    protected parseContents(allowEndBlock=false): J.Contents {
         const result = [];
-        let done = false;
-        while (!this.eof() && !done) {
+        while (!this.eof()) {
             const tc = this.peek1();
-            switch (tc) {
-                case TC_BLOCKDATA:
-                case TC_BLOCKDATALONG:
-                    result.push(this.parseBlockData());
+            if (tc === TC_ENDBLOCKDATA && allowEndBlock)
+                break;
+
+            try {
+                result.push(this.nextContent());
+            } catch (ex) {
+                if (ex instanceof EOFException) {
                     break;
-                case TC_OBJECT:
-                case TC_CLASS:
-                case TC_ARRAY:
-                case TC_STRING:
-                case TC_ENUM:
-                case TC_CLASSDESC:
-                case TC_PROXYCLASSDESC:
-                case TC_REFERENCE:
-                case TC_NULL:
-                case TC_EXCEPTION:
-                    result.push(this.parseObject());
-                    break;
-                case TC_RESET:
-                    // This is technically an "object", but in practice it doesn't matter
-                    this.handleTable.reset();
-                    break;
-                case TC_ENDBLOCKDATA:
-                    if (allowEndBlock) {
-                        done = true;
-                        break;
-                    }
-                default:
-                    throw new StreamCorruptedException("Unknown content tc: " + tc);
+                } else {
+                    throw ex;
+                }
             }
         }
         return result;
@@ -616,48 +631,72 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return contents;
     }
 
-    parseObjectAnnotation(): J.Contents { return this._parseEndBlockTerminatedContents(); }
-    parseClassAnnotation(): J.Contents { return this._parseEndBlockTerminatedContents(); }
+    protected parseObjectAnnotation(): J.Contents { return this._parseEndBlockTerminatedContents(); }
+    protected parseClassAnnotation(): J.Contents { return this._parseEndBlockTerminatedContents(); }
 }
+
+const CONTENT_EOF = Symbol("content eof");
 
 
 export class ObjectInputStream extends PrimitiveInput {
-    private contents: J.Contents;
-    private offset: number;
+    private parser: ObjectInputStreamParser;
+    private currContent: J.Content | typeof CONTENT_EOF;
     private blockOffset: number;
 
     constructor(data: Uint8Array) {
         super();
-        this.contents = new ObjectInputStreamParser(data).parseContents();
-        this.offset = 0;
+        this.parser = new ObjectInputStreamParser(data)
+
+        this.currContent = null;
         this.blockOffset = 0;
+        this.readNextContent();
+    }
+
+    protected readNextContent(): void {
+        this.blockOffset = 0;
+        try {
+            this.currContent = this.parser.nextContent();
+        } catch (ex) {
+            if (ex instanceof EOFException) {
+                this.currContent = CONTENT_EOF;
+            } else {
+                throw ex;
+            }
+        }
+
+        // Skip empty blocks
+        if (this.currContent instanceof Uint8Array && this.currContent.length === 0)
+            return this.readNextContent();
     }
 
     read1() {
-        if (this.offset >= this.contents.length)
+        if (this.currContent === CONTENT_EOF)
             return -1;
-        const content = this.contents[this.offset];
-        if (!(content instanceof Uint8Array))
+
+        if (!(this.currContent instanceof Uint8Array))
             return -1;
-        if (this.blockOffset >= content.length) {
-            throw new IllegalStateException("Illegal state");
-        }
-        const result = content[this.blockOffset++];
-        if (this.blockOffset >= content.length) {
-            this.offset++;
-            this.blockOffset = 0;
-        }
+
+        if (this.blockOffset >= this.currContent.length)
+            throw new IllegalStateException();
+
+        const result = this.currContent[this.blockOffset++];
+
+        if (this.blockOffset >= this.currContent.length)
+            this.readNextContent();
+
         return result;
     }
 
     readObject(): J.Object {
-        if (this.offset >= this.contents.length)
+        if (this.currContent === CONTENT_EOF)
             throw new EOFException();
-        const content = this.contents[this.offset];
-        if (content instanceof Uint8Array)
+
+        if (this.currContent instanceof Uint8Array)
             throw new OptionalDataException();
-        this.offset++;
-        return content;
+
+        const result = this.currContent;
+        this.readNextContent();
+        return result;
     }
 }
 
