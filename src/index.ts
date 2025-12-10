@@ -290,7 +290,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return this.offset >= this.data.length;
     }
 
-    parseContents(allowEndBlock=false): J.Contents {
+    public parseContents(allowEndBlock=false): J.Contents {
         const result = [];
         let done = false;
         while (!this.eof() && !done) {
@@ -328,7 +328,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return result;
     }
 
-    parseBlockData(): J.BlockData {
+    protected parseBlockData(): J.BlockData {
         const tc = this.read1();
         let size: number;
         switch (tc) {
@@ -344,7 +344,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return this.readFully(size);
     }
 
-    parseObject(): J.Object {
+    protected parseObject(): J.Object {
         const tc = this.peek1();
         switch (tc) {
             case TC_OBJECT:
@@ -373,7 +373,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         }
     }
 
-    parseNewObject(): J.ObjectInstance {
+    protected parseNewObject(): J.ObjectInstance {
         const tc = this.read1();
         if (tc !== TC_OBJECT) throw new StreamCorruptedException("Unknown new object tc: " + tc);
         const result: Partial<J.ObjectInstance> = {};
@@ -392,7 +392,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return Object.assign(result, {[JAVAOBJ_SYMBOL]: internal})
     }
 
-    _parseObjectInternal(classDesc: J.ClassDesc | null): J.ObjectInstanceInternal {
+    private _parseObjectInternal(classDesc: J.ClassDesc | null): J.ObjectInstanceInternal {
         const result: Partial<J.ObjectInstanceInternal> = {};
 
         const classChain = [];
@@ -431,7 +431,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return Object.assign(result, {classDesc, classData});
     }
 
-    parseValues(classDesc: J.ClassDesc): J.Values {
+    protected parseValues(classDesc: J.ClassDesc): J.Values {
         const result: J.Values = new Map();
         for (const field of classDesc.fields) {
             result.set(field.fieldName, this.parseValue(field.typecode));
@@ -439,7 +439,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return result;
     }
 
-    parseValue(typecode: string): J.Object | J.Primitive {
+    protected parseValue(typecode: string): J.Object | J.Primitive {
         switch (typecode) {
             case '[':
             case 'L':
@@ -458,7 +458,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         }
     }
 
-    parseNewClass(): J.Class {
+    protected parseNewClass(): J.Class {
         const tc = this.read1();
         if (tc !== TC_CLASS) throw new StreamCorruptedException("Unknown reference tc: " + tc);
 
@@ -472,7 +472,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return result;
     }
 
-    parseNewArray(): J.Array {
+    protected parseNewArray(): J.Array {
         const tc = this.read1();
         if (tc !== TC_ARRAY) throw new StreamCorruptedException("Unknown array tc: " + tc);
 
@@ -492,7 +492,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         }});
     }
 
-    parseNewString(): J.String {
+    protected parseNewString(): J.String {
         const tc = this.read1();
         let result: string;
         switch (tc) {
@@ -509,7 +509,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return result;
     }
 
-    parseNewEnum(): J.Enum {
+    protected parseNewEnum(): J.Enum {
         const tc = this.read1();
         if (tc !== TC_ENUM) throw new StreamCorruptedException("Unknown enum tc: " + tc);
         const result: Partial<J.Enum> = {};
@@ -522,7 +522,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return Object.assign(result, {type: "enum", classDesc, name});
     }
 
-    parseNewClassDesc(): J.ClassDesc {
+    protected parseNewClassDesc(): J.ClassDesc {
         const tc = this.read1();
         if (tc === TC_PROXYCLASSDESC) throw new NotImplementedError("proxy classes");
         if (tc !== TC_CLASSDESC) throw new StreamCorruptedException("Unknown new class desc tc: " + tc);
@@ -549,7 +549,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         });
     }
 
-    parseFields(): J.FieldDesc[] {
+    protected parseFields(): J.FieldDesc[] {
         const fields: J.FieldDesc[] = [];
         const fieldCount = this.readShort();
         for (let i=0; i<fieldCount; i++) {
@@ -575,7 +575,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         return fields;
     }
 
-    parseClassDesc(): J.ClassDesc | null {
+    protected parseClassDesc(): J.ClassDesc | null {
         const tc = this.peek1();
         switch (tc) {
             case TC_CLASSDESC:
@@ -596,28 +596,28 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         }
     }
 
-    parsePrevObject(): J.Object {
+    protected parsePrevObject(): J.Object {
         const tc = this.read1();
         if (tc !== TC_REFERENCE) throw new StreamCorruptedException("Unknown reference tc: " + tc);
         const handle = this.readInt();
         return this.handleTable.getObject(handle);
     }
 
-    parseException(): J.Exception {
+    protected parseException(): J.Exception {
         const tc = this.read1();
         if (tc !== TC_EXCEPTION) throw new StreamCorruptedException("Unknown exception tc: " + tc);
         throw new NotImplementedError("Exceptions in stream");
     }
 
-    _parseEndBlockTerminatedContents(): J.Contents {
+    private _parseEndBlockTerminatedContents(): J.Contents {
         const contents = this.parseContents(true);
         const endBlock = this.read1();
         if (endBlock !== TC_ENDBLOCKDATA) throw new StreamCorruptedException("Expected TC_ENDBLOCKDATA");
         return contents;
     }
 
-    parseObjectAnnotation = this._parseEndBlockTerminatedContents
-    parseClassAnnotation = this._parseEndBlockTerminatedContents
+    parseObjectAnnotation(): J.Contents { return this._parseEndBlockTerminatedContents(); }
+    parseClassAnnotation(): J.Contents { return this._parseEndBlockTerminatedContents(); }
 }
 
 
