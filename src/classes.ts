@@ -1,4 +1,4 @@
-import { Serializable } from ".";
+import { InvalidObjectException, J, ObjectInputStream, Serializable } from ".";
 
 export namespace java {
     export namespace lang {
@@ -33,6 +33,34 @@ export namespace java {
         export class Boolean implements Serializable {
             value: boolean = false;
             readResolve() { return this.value; }
+        }
+    }
+
+    export namespace util {
+        export class ArrayList extends Array implements Serializable {
+            readObject(ois: ObjectInputStream, classDesc: J.ClassDesc): void {
+                // Read size from fields
+                const size = ois.readFields().get("size");
+                if (typeof size !== "number" || size < 0)
+                    throw new InvalidObjectException("Invalid size: " + size)
+
+                // Read and ignore capacity
+                ois.readInt();
+
+                // Read all items
+                for (let i=0; i<size; i++)
+                    this.push(ois.readObject());
+            }
+        }
+
+        export class LinkedList extends Array implements Serializable {
+            readObject(ois: ObjectInputStream, classDesc: J.ClassDesc): void {
+                ois.readFields();
+
+                const size = ois.readInt();
+                for (let i=0; i<size; i++)
+                    this.push(ois.readObject());
+            }
         }
     }
 }
