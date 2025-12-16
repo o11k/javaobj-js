@@ -1,4 +1,4 @@
-import { InvalidObjectException, J, ObjectInputStream, Serializable } from ".";
+import { InvalidObjectException, J, NotImplementedError, ObjectInputStream, Serializable } from ".";
 
 export namespace java {
     export namespace lang {
@@ -60,6 +60,34 @@ export namespace java {
                 const size = ois.readInt();
                 for (let i=0; i<size; i++)
                     this.push(ois.readObject());
+            }
+        }
+
+        export class HashSet extends Set implements Serializable {
+            readObject(ois: ObjectInputStream, classDesc: J.ClassDesc): void {
+                ois.readFields(); // None
+                ois.readInt();    // Capacity
+                ois.readFloat();  // Load factor
+
+                const size = ois.readInt();
+                for (let i=0; i<size; i++)
+                    this.add(ois.readObject());
+            }
+        }
+
+        export class LinkedHashSet extends HashSet {}
+
+        export class TreeSet extends Set implements Serializable {
+            readObject(ois: ObjectInputStream, classDesc: J.ClassDesc): void {
+                ois.readFields();
+
+                const comparator = ois.readObject();
+                if (comparator !== null)
+                    throw new NotImplementedError("TreeSet with comparator");
+
+                const size = ois.readInt();
+                for (let i=0; i<size; i++)
+                    this.add(ois.readObject());
             }
         }
     }
