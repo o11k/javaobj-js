@@ -779,10 +779,12 @@ export class ObjectInputStream extends PrimitiveInput {
         super();
         this.parser = data instanceof ObjectInputStreamParser ? data : new ObjectInputStreamParser(data)
 
-        const initialSerializables = options?.initialSerializables ?? builtinSerializables;
-        for (const [k,v] of initialSerializables.entries()) this.registerSerializable(k, v);
-        const initialExternalizables = options?.initialExternalizables ?? builtinExternalizables;
-        for (const [k,v] of initialExternalizables.entries()) this.registerExternalizable(k, v);
+        if (!(data instanceof ObjectInputStreamParser)) {
+            const initialSerializables = options?.initialSerializables ?? builtinSerializables;
+            for (const [k,v] of initialSerializables.entries()) this.registerSerializable(k, v);
+            const initialExternalizables = options?.initialExternalizables ?? builtinExternalizables;
+            for (const [k,v] of initialExternalizables.entries()) this.registerExternalizable(k, v);
+        }
     }
 
     protected readNextContent(): J.Content {

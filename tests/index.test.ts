@@ -15,6 +15,7 @@ const PATH_DIR = "tests/tmp";
 const PRIMITIVES_FILENAME = "primitives"
 const FLOATS_FILENAME = "floats"
 const INT_LIMITS_FILENAME = "int-limits"
+const PRIMITIVE_WRAPPERS_FILENAME = "primitive-wrappers";
 
 function readExpectedFile(baseFilename: string): any[] {
     const data = fs.readFileSync(PATH_DIR + "/" + baseFilename + ".txt")
@@ -30,8 +31,10 @@ function readSerializedFile(baseFilename: string): Uint8Array {
     return fs.readFileSync(PATH_DIR + "/" + baseFilename + ".ser");
 }
 
-function toFloat32(double: number): number {
-    return new Float32Array([double])[0];
+// Round a float64 to the closest float32
+// Equivalent to (double)(float)d in Java
+function toFloat32(d: number): number {
+    return new Float32Array([d])[0];
 }
 
 test("sanity: primitives", () => {
@@ -103,4 +106,32 @@ test("integer limits", () => {
     expect(ois.readShort()).toBe(1);
     expect(ois.readShort()).toBe(-Math.pow(2, 16-1));
     expect(ois.readShort()).toBe( Math.pow(2, 16-1) - 1);
+})
+
+test("primitive wrappers: with handlers", () => {
+    const ois = new ObjectInputStream(readSerializedFile(PRIMITIVE_WRAPPERS_FILENAME));
+
+    expect(ois.readObject()).toBe(5);        // Byte
+    expect(ois.readObject()).toBe('\u0005'); // Character
+    expect(ois.readObject()).toBe(5);        // Double
+    expect(ois.readObject()).toBe(5);        // Float
+    expect(ois.readObject()).toBe(5);        // Integer
+    expect(ois.readObject()).toBe(5n);       // Long
+    expect(ois.readObject()).toBe(5);        // Short
+    expect(ois.readObject()).toBe(true);     // Boolean
+})
+
+test("primitive wrappers: without handlers", () => {
+    const ois = new ObjectInputStream(readSerializedFile(PRIMITIVE_WRAPPERS_FILENAME), {
+        initialSerializables: new Map(),
+    });
+
+    expect(ois.readObject()).toMatchObject({value: 5});        // Byte
+    expect(ois.readObject()).toMatchObject({value: '\u0005'}); // Character
+    expect(ois.readObject()).toMatchObject({value: 5});        // Double
+    expect(ois.readObject()).toMatchObject({value: 5});        // Float
+    expect(ois.readObject()).toMatchObject({value: 5});        // Integer
+    expect(ois.readObject()).toMatchObject({value: 5n});       // Long
+    expect(ois.readObject()).toMatchObject({value: 5});        // Short
+    expect(ois.readObject()).toMatchObject({value: true});     // Boolean
 })

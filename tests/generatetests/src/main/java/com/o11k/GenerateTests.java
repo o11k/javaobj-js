@@ -343,10 +343,29 @@ public class GenerateTests {
         outSerialized.close();
     }
 
+    static final String PRIMITIVE_WRAPPERS_FILENAME = "primitive-wrappers";
+    static void genPrimitiveWrappers() throws Exception {
+        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + PRIMITIVE_WRAPPERS_FILENAME + ".ser");
+        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
+
+        oos.writeObject((Byte)(byte)5);
+        oos.writeObject((Character)(char)5);
+        oos.writeObject((Double)5d);
+        oos.writeObject((Float)5f);
+        oos.writeObject((Integer)5);
+        oos.writeObject((Long)5L);
+        oos.writeObject((Short)(short)5);
+        oos.writeObject((Boolean)true);
+
+        oos.close();
+        outSerialized.close();
+    }
+
     public static void main(String[] args) throws Exception {
         genPrimitives();
         genFloats();
         genIntLimits();
+        genPrimitiveWrappers();
         if (true) return;
 
         new File(PATH_DIR).mkdirs();
