@@ -255,42 +255,31 @@ export abstract class PrimitiveInput extends ByteInput {
 }
 
 class HandleTable {
-    private handle2obj: Map<number, J.Object> = new Map();
-    // Primitives can end up having multiple handles
-    private obj2handles: Map<J.Object, number[]> = new Map();
+    private table: Map<number, J.Object> = new Map();
     private currHandle = baseWireHandle;
 
     reset(): void {
-        this.handle2obj.clear();
-        this.obj2handles.clear();
+        this.table.clear();
         this.currHandle = baseWireHandle;
     }
 
     newHandle(obj: J.Object): number {
         const handle = this.currHandle++;
-        const handles = this.obj2handles.get(obj) ?? [];
-        handles.push(handle);
-        this.handle2obj.set(handle, obj);
-        this.obj2handles.set(obj, handles);
+        this.table.set(handle, obj);
         return handle;
     }
 
     getObject(handle: number): J.Object {
-        const result = this.handle2obj.get(handle);
+        const result = this.table.get(handle);
         if (result === undefined) throw new StreamCorruptedException("Object handle doesn't exist: " + handle);
         return result;
     }
 
-    replaceObject(oldObj: J.Object, newObj: J.Object): void {
-        const handles = this.obj2handles.get(oldObj);
-        if (handles === undefined || handles.length === 0)
-            throw new Error("Object to replace doesn't have a handle: " + oldObj);
-        if (handles.length > 1)
-            throw new Error("Object to replace has multiple handles: " + oldObj);
-        const handle = handles[0];
-        this.handle2obj.set(handle, newObj);
-        this.obj2handles.delete(oldObj);
-        this.obj2handles.set(newObj, handles);
+    replaceObject(handle: number, oldObj: J.Object, newObj: J.Object): void {
+        if (this.table.get(handle) !== oldObj)
+            throw new Error(`Replaced handle ${handle} doesn't refer to object ${oldObj}`);
+
+        this.table.set(handle, newObj);
     }
 }
 
@@ -475,7 +464,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
 
         // Create object
         const result = new Ctor();
-        this.handleTable.newHandle(result);
+        const handle = this.handleTable.newHandle(result);
 
         // Call readExternal
         this.contextStack.push({classDesc, object: result, alreadyReadFields: false});
@@ -490,7 +479,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         // Replace result if applicable
         if (result.readResolve !== undefined) {
             const replaced = result.readResolve();
-            this.handleTable.replaceObject(result, replaced);
+            this.handleTable.replaceObject(handle, result, replaced);
             return replaced;
         }
 
@@ -542,7 +531,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         // Replace result if applicable
         if (result.readResolve !== undefined) {
             const replaced = result.readResolve();
-            this.handleTable.replaceObject(result, replaced);
+            this.handleTable.replaceObject(handle, result, replaced);
             return replaced;
         }
 
@@ -721,7 +710,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
     protected parseException(): J.Exception {
         const tc = this.read1();
         if (tc !== TC_EXCEPTION) throw new StreamCorruptedException("Unknown exception tc: " + tc);
-        throw new NotImplementedError("Exception");
+        throw new NotImplementedError("Exception in stream");
     }
 
     private _parseEndBlockTerminatedContents(): J.Contents {
@@ -744,7 +733,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
     public readFields(): J.Values {
         if (this.contextStack.length === 0) throw new NotActiveException("Not inside a readObject method");
         const context = this.contextStack[this.contextStack.length - 1];
-        if (context.alreadyReadFields) throw new NotActiveException("FIelds already read");
+        if (context.alreadyReadFields) throw new NotActiveException("Fields already read");
         if (!(context.classDesc.flags & SC_SERIALIZABLE)) throw new NotActiveException("Object not serializable");
 
         context.alreadyReadFields = true;

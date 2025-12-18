@@ -201,6 +201,7 @@ test("object equality vs sameness", () => {
     expect(handle1).toBe(handle2);
 })
 
+test.todo("array of objects")
 test.todo("0-length blocks before object")
 test.todo("0-length blocks before block")
 test.todo("primitive crossing block boundaries")
@@ -236,12 +237,13 @@ test.todo("read too much")  // primitive + object cases
 test.todo("readObject when in block")
 test.todo("read[primitive] when not in block")
 test.todo("serializable parent class in java but not js")
+test.todo("readResolve circular reference")
+test.todo("readResolve multiple handles")  // unrealistic condition
 
 // Errors in stream
 
 test.todo("utf-8 error")
 test.todo("prevObject doesn't exist")
-test.todo("replaceObject multiple handles")  // unrealistic condition
 test.todo("empty file")
 test.todo("corruped STREAM_MAGIC or STREAM_VERSION")
 test.todo("unknown TC")
