@@ -167,12 +167,20 @@ test("2d array", () => {
     expect(found).toEqual(expected);
 })
 
-const SAME_TWICE_FILENAME = "same-obj-twice";
-test("same object twice", () => {
-    const ois = new ObjectInputStream(readSerializedFile(SAME_TWICE_FILENAME));
+const OBJ_REF_FILENAME = "obj-ref-vs-eq";
+test("object equality vs sameness", () => {
+    const ois = new ObjectInputStream(readSerializedFile(OBJ_REF_FILENAME));
 
-    const obj1 = ois.readObject();
-    const obj2 = ois.readObject();
+    const obj1_1 = ois.readObject();
+    const obj2_1 = ois.readObject();
+    const obj1_2 = ois.readObject();
+    const obj2_2 = ois.readObject();
 
-    expect(obj1).toBe(obj2);
+    // The pairs are the same (===)
+    expect(obj1_1).toBe(obj1_2);
+    expect(obj2_1).toBe(obj2_2);
+
+    // Equal but not same between pairs
+    expect(obj1_1).not.toBe(obj2_1);
+    expect(obj1_1).toEqual(obj2_1);
 })
