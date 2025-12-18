@@ -3,13 +3,7 @@
 
 import fs from 'node:fs';
 
-import {JAVAOBJ_SYMBOL, ObjectInputStream} from '../src/index';
-
-describe("example", () => {
-    test("symbol name", () => {
-        expect(JAVAOBJ_SYMBOL.toString()).toBe("Symbol(javaobj)");
-    })
-})
+import { ObjectInputStream } from '../src/index';
 
 const PATH_DIR = "tests/tmp";
 const PRIMITIVES_FILENAME = "primitives"

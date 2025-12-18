@@ -38,8 +38,6 @@ export const SC_SERIALIZABLE   = 0x02;
 export const SC_EXTERNALIZABLE = 0x04;
 export const SC_ENUM           = 0x10;
 
-export const JAVAOBJ_SYMBOL = Symbol("javaobj");
-
 export namespace J {
     export type Contents = Content[];
     export type Content = Object | BlockData;
