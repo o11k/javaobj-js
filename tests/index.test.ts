@@ -13,6 +13,7 @@ const PRIMITIVE_WRAPPERS_FILENAME = "primitive-wrappers";
 const STRINGS_FILENAME = "strings";
 const PRIMITIVE_ARR_FILENAME = "array-primitive";
 const SAME_TWICE_FILENAME = "same-obj-twice";
+const ARR_2D_FILENAME = "array-2d";
 
 function readExpectedFile(baseFilename: string): any[] {
     const data = fs.readFileSync(PATH_DIR + "/" + baseFilename + ".txt")
@@ -164,5 +165,14 @@ test("same object twice", () => {
     const obj1 = ois.readObject();
     const obj2 = ois.readObject();
 
-    expect(obj1).toBe(obj2)
+    expect(obj1).toBe(obj2);
+})
+
+test("2d array", () => {
+    const ois = new ObjectInputStream(readSerializedFile(ARR_2D_FILENAME));
+
+    const expected = [[1,2,3], [4,5,6], [7,8,9]];
+    const found = Array.from(ois.readObject() as J.Array, item => Array.from(item));
+
+    expect(found).toEqual(expected);
 })
