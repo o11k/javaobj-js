@@ -177,8 +177,6 @@ public class GenerateTests {
     static final int NUM_ITEMS_TO_WRITE = 10_000;
 
     static final String PATH_DIR = "tests/tmp";
-    static final String PATH_TXT = PATH_DIR + "/expected.txt";
-    static final String PATH_SER = PATH_DIR + "/serialized.ser";
 
 
     static void writePrimitive(Random rnd, FileWriter outExpected, ObjectOutputStream oos) throws Exception {
@@ -257,11 +255,16 @@ public class GenerateTests {
         oos.writeObject(obj);
     }
 
-    static final String PRIMITIVES_FILENAME = "primitives";
-    static void genPrimitives() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + PRIMITIVES_FILENAME + ".ser");
+    static interface GenMethod { void test(ObjectOutputStream oos) throws Exception; }
+    static void withOos(String filename, GenMethod test) throws Exception {
+        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + filename + ".ser");
         final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
+        test.test(oos);
+        oos.close();
+        outSerialized.close();
+    }
 
+    static void genPrimitives(ObjectOutputStream oos) throws Exception {
         oos.writeByte(69);
         oos.writeChar('✔');
         oos.writeDouble(420e69);
@@ -270,16 +273,9 @@ public class GenerateTests {
         oos.writeLong(420L << (6*9));
         oos.writeShort(-12345);
         oos.writeBoolean(true);
-
-        oos.close();
-        outSerialized.close();
     }
 
-    static final String FLOATS_FILENAME = "floats";
-    static void genFloats() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + FLOATS_FILENAME + ".ser");
-        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
-
+    static void genFloats(ObjectOutputStream oos) throws Exception {
         oos.writeFloat(0.5f);
         oos.writeFloat(1_000_000f);
         oos.writeFloat(0.0f);
@@ -297,16 +293,9 @@ public class GenerateTests {
         oos.writeDouble(Double.NEGATIVE_INFINITY);
         oos.writeDouble(Double.NaN);
         oos.writeDouble(1e-310d);
-
-        oos.close();
-        outSerialized.close();
     }
 
-    static final String INT_LIMITS_FILENAME = "int-limits";
-    static void genIntLimits() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + INT_LIMITS_FILENAME + ".ser");
-        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
-
+    static void genIntLimits(ObjectOutputStream oos) throws Exception {
         oos.writeByte(-1);
         oos.writeByte(0);
         oos.writeByte(1);
@@ -338,16 +327,9 @@ public class GenerateTests {
         oos.writeShort(1);
         oos.writeShort(Short.MIN_VALUE);
         oos.writeShort(Short.MAX_VALUE);
-
-        oos.close();
-        outSerialized.close();
     }
 
-    static final String PRIMITIVE_WRAPPERS_FILENAME = "primitive-wrappers";
-    static void genPrimitiveWrappers() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + PRIMITIVE_WRAPPERS_FILENAME + ".ser");
-        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
-
+    static void genPrimitiveWrappers(ObjectOutputStream oos) throws Exception {
         oos.writeObject((Byte     )(byte   )5);
         oos.writeObject((Character)(char   )5);
         oos.writeObject((Double   )(double )5);
@@ -356,16 +338,9 @@ public class GenerateTests {
         oos.writeObject((Long     )(long   )5);
         oos.writeObject((Short    )(short  )5);
         oos.writeObject((Boolean  )(boolean)true);
-
-        oos.close();
-        outSerialized.close();
     }
 
-    static final String STRINGS_FILENAME = "strings";
-    static void genStrings() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + STRINGS_FILENAME + ".ser");
-        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
-
+    static void genStrings(ObjectOutputStream oos) throws Exception {
         // A string of all utf-16 char codes in order (0x0000-0xffff)
         String gigaString = IntStream
             .rangeClosed(0, 0xffff)
@@ -377,44 +352,23 @@ public class GenerateTests {
         oos.writeObject("a".repeat(0xffff));    // Longest TC_STRING
         oos.writeObject("b".repeat(0xffff+1));  // Shortest TC_LONGSTRING
         oos.writeObject(gigaString);
-
-        oos.close();
-        outSerialized.close();
     }
 
-    static final String PRIMITIVE_ARR_FILENAME = "array-primitive";
-    static void genPrimitiveArr() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + PRIMITIVE_ARR_FILENAME + ".ser");
-        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
-
+    static void genPrimitiveArr(ObjectOutputStream oos) throws Exception {
         byte[] allBytes = new byte[Byte.MAX_VALUE - Byte.MIN_VALUE + 1];
         for (int i=Byte.MIN_VALUE; i<=Byte.MAX_VALUE; i++) {
             allBytes[i - Byte.MIN_VALUE] = (byte)i;
         }
 
         oos.writeObject(allBytes);
-
-        oos.close();
-        outSerialized.close();
     }
 
-    static final String ARR_2D_FILENAME = "array-2d";
-    static void gen2dArr() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + ARR_2D_FILENAME + ".ser");
-        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
-
+    static void gen2dArr(ObjectOutputStream oos) throws Exception {
         oos.writeObject(new int[][]{{1,2,3}, {4,5,6}, {7,8,9}});
-
-        oos.close();
-        outSerialized.close();
     }
 
     static class EmptyClass implements Serializable {}
-    static final String OBJ_REF_FILENAME = "obj-ref-vs-eq";
-    static void genObjRef() throws Exception {
-        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + OBJ_REF_FILENAME + ".ser");
-        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
-
+    static void genObjRef(ObjectOutputStream oos) throws Exception {
         EmptyClass obj1 = new EmptyClass();
         EmptyClass obj2 = new EmptyClass();
         oos.writeObject(obj1);
@@ -424,21 +378,18 @@ public class GenerateTests {
 
         oos.reset();
         oos.writeObject(obj1);
-
-        oos.close();
-        outSerialized.close();
     }
 
     public static void main(String[] args) throws Exception {
         new File(PATH_DIR).mkdirs();
 
-        genPrimitives();
-        genFloats();
-        genIntLimits();
-        genPrimitiveWrappers();
-        genStrings();
-        genPrimitiveArr();
-        genObjRef();
-        gen2dArr();
+        withOos("primitives", GenerateTests::genPrimitives);
+        withOos("floats", GenerateTests::genFloats);
+        withOos("int-limits", GenerateTests::genIntLimits);
+        withOos("primitive-wrappers", GenerateTests::genPrimitiveWrappers);
+        withOos("strings", GenerateTests::genStrings);
+        withOos("array-primitive", GenerateTests::genPrimitiveArr);
+        withOos("obj-ref-vs-eq", GenerateTests::genObjRef);
+        withOos("array-2d", GenerateTests::gen2dArr);
     }
 }
