@@ -382,6 +382,22 @@ public class GenerateTests {
         outSerialized.close();
     }
 
+    static final String PRIMITIVE_ARR_FILENAME = "array-primitive";
+    static void genPrimitiveArr() throws Exception {
+        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + PRIMITIVE_ARR_FILENAME + ".ser");
+        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
+
+        byte[] allBytes = new byte[Byte.MAX_VALUE - Byte.MIN_VALUE + 1];
+        for (int i=Byte.MIN_VALUE; i<=Byte.MAX_VALUE; i++) {
+            allBytes[i - Byte.MIN_VALUE] = (byte)i;
+        }
+
+        oos.writeObject(allBytes);
+
+        oos.close();
+        outSerialized.close();
+    }
+
     public static void main(String[] args) throws Exception {
         new File(PATH_DIR).mkdirs();
 
@@ -390,5 +406,6 @@ public class GenerateTests {
         genIntLimits();
         genPrimitiveWrappers();
         genStrings();
+        genPrimitiveArr();
     }
 }

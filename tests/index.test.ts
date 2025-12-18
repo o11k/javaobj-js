@@ -3,7 +3,7 @@
 
 import fs from 'node:fs';
 
-import { ObjectInputStream } from '../src/index';
+import { ObjectInputStream, J } from '../src/index';
 
 const PATH_DIR = "tests/tmp";
 const PRIMITIVES_FILENAME = "primitives"
@@ -11,6 +11,7 @@ const FLOATS_FILENAME = "floats"
 const INT_LIMITS_FILENAME = "int-limits"
 const PRIMITIVE_WRAPPERS_FILENAME = "primitive-wrappers";
 const STRINGS_FILENAME = "strings";
+const PRIMITIVE_ARR_FILENAME = "array-primitive"
 
 function readExpectedFile(baseFilename: string): any[] {
     const data = fs.readFileSync(PATH_DIR + "/" + baseFilename + ".txt")
@@ -142,4 +143,16 @@ test("strings", () => {
     expect(ois.readObject()).toBe("a".repeat(0xffff));
     expect(ois.readObject()).toBe("b".repeat(0xffff+1));
     expect(ois.readObject()).toBe(gigastring);
+})
+
+test("array of primitives", () => {
+    const ois = new ObjectInputStream(readSerializedFile(PRIMITIVE_ARR_FILENAME), {
+        initialSerializables: new Map(),  // No primitive wrapper handlers, to prove that values are actually primitive
+    });
+
+    const expected = Array.from({length: 256}, (_, i) => i-128);
+    const found = ois.readObject() as J.Array;
+
+    expect(found instanceof J.Array).toBeTruthy();
+    expect(Array.from(found)).toEqual(expected);
 })
