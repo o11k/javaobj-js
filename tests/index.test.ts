@@ -11,7 +11,8 @@ const FLOATS_FILENAME = "floats"
 const INT_LIMITS_FILENAME = "int-limits"
 const PRIMITIVE_WRAPPERS_FILENAME = "primitive-wrappers";
 const STRINGS_FILENAME = "strings";
-const PRIMITIVE_ARR_FILENAME = "array-primitive"
+const PRIMITIVE_ARR_FILENAME = "array-primitive";
+const SAME_TWICE_FILENAME = "same-obj-twice";
 
 function readExpectedFile(baseFilename: string): any[] {
     const data = fs.readFileSync(PATH_DIR + "/" + baseFilename + ".txt")
@@ -155,4 +156,13 @@ test("array of primitives", () => {
 
     expect(found instanceof J.Array).toBeTruthy();
     expect(Array.from(found)).toEqual(expected);
+})
+
+test("same object twice", () => {
+    const ois = new ObjectInputStream(readSerializedFile(SAME_TWICE_FILENAME));
+
+    const obj1 = ois.readObject();
+    const obj2 = ois.readObject();
+
+    expect(obj1).toBe(obj2)
 })

@@ -398,6 +398,20 @@ public class GenerateTests {
         outSerialized.close();
     }
 
+    static class SameTwice implements Serializable {}
+    static final String SAME_TWICE_FILENAME = "same-obj-twice";
+    static void genSameTwice() throws Exception {
+        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + SAME_TWICE_FILENAME + ".ser");
+        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
+
+        SameTwice obj = new SameTwice();
+        oos.writeObject(obj);
+        oos.writeObject(obj);
+
+        oos.close();
+        outSerialized.close();
+    }
+
     public static void main(String[] args) throws Exception {
         new File(PATH_DIR).mkdirs();
 
@@ -407,5 +421,6 @@ public class GenerateTests {
         genPrimitiveWrappers();
         genStrings();
         genPrimitiveArr();
+        genSameTwice();
     }
 }
