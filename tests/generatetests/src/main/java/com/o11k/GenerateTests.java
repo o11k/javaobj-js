@@ -354,17 +354,30 @@ public class GenerateTests {
         oos.writeObject(gigaString);
     }
 
-    static void genPrimitiveArr(ObjectOutputStream oos) throws Exception {
+    static class IntAndObj implements Serializable {
+        int i;
+        Object obj;
+        IntAndObj(int i, Object obj) {this.i = i; this.obj = obj;}
+    }
+    static void genArrays(ObjectOutputStream oos) throws Exception {
+        // Empty array
+        oos.writeObject(new boolean[]{});
+
+        // Array of all possible byte values
         byte[] allBytes = new byte[Byte.MAX_VALUE - Byte.MIN_VALUE + 1];
         for (int i=Byte.MIN_VALUE; i<=Byte.MAX_VALUE; i++) {
             allBytes[i - Byte.MIN_VALUE] = (byte)i;
         }
-
         oos.writeObject(allBytes);
-    }
 
-    static void gen2dArr(ObjectOutputStream oos) throws Exception {
+        // 2d array
         oos.writeObject(new int[][]{{1,2,3}, {4,5,6}, {7,8,9}});
+
+        // Array of interconnected objects
+        IntAndObj a = new IntAndObj(1, null);
+        IntAndObj b = new IntAndObj(2, a);
+        IntAndObj c = new IntAndObj(3, b);
+        oos.writeObject(new IntAndObj[]{a,b,c});
     }
 
     static class EmptyClass implements Serializable {}
@@ -388,8 +401,7 @@ public class GenerateTests {
         withOos("int-limits", GenerateTests::genIntLimits);
         withOos("primitive-wrappers", GenerateTests::genPrimitiveWrappers);
         withOos("strings", GenerateTests::genStrings);
-        withOos("array-primitive", GenerateTests::genPrimitiveArr);
+        withOos("arrays", GenerateTests::genArrays);
         withOos("obj-ref-vs-eq", GenerateTests::genObjRef);
-        withOos("array-2d", GenerateTests::gen2dArr);
     }
 }

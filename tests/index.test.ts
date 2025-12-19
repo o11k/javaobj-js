@@ -144,27 +144,29 @@ test("strings", () => {
     expect(ois.readObject()).toBe(gigastring);
 })
 
-const PRIMITIVE_ARR_FILENAME = "array-primitive";
-test("array of primitives", () => {
-    const ois = new ObjectInputStream(readSerializedFile(PRIMITIVE_ARR_FILENAME), {
+const ARRAYS_FILENAME = "arrays";
+test("arrays", () => {
+    const ois = new ObjectInputStream(readSerializedFile(ARRAYS_FILENAME), {
         initialSerializables: new Map(),  // No primitive wrapper handlers, to prove that values are actually primitive
     });
 
-    const expected = Array.from({length: 256}, (_, i) => i-128);
-    const found = ois.readObject() as J.Array;
+    // It's hard to test equality of classes that extend Array, because of jest quirks
+    function javaArrayToJS(arr: any): any[] {
+        if (!(arr instanceof J.Array)) return arr;
+        return Array.from(arr, item => javaArrayToJS(item));
+    }
 
-    expect(found instanceof J.Array).toBeTruthy();
-    expect(Array.from(found)).toEqual(expected);
-})
+    expect(javaArrayToJS(ois.readObject())).toEqual([]);
 
-const ARR_2D_FILENAME = "array-2d";
-test("2d array", () => {
-    const ois = new ObjectInputStream(readSerializedFile(ARR_2D_FILENAME));
+    const allBytes = Array.from({length: 256}, (_, i) => i-128);
+    expect(javaArrayToJS(ois.readObject())).toEqual(allBytes);
 
-    const expected = [[1,2,3], [4,5,6], [7,8,9]];
-    const found = Array.from(ois.readObject() as J.Array, item => Array.from(item));
+    expect(javaArrayToJS(ois.readObject())).toEqual([[1,2,3], [4,5,6], [7,8,9]]);
 
-    expect(found).toEqual(expected);
+    const a = {i: 1, obj: null};
+    const b = {i: 2, obj: a};
+    const c = {i: 3, obj: b};
+    expect(javaArrayToJS(ois.readObject())).toMatchObject([a,b,c]);
 })
 
 const OBJ_REF_FILENAME = "obj-ref-vs-eq";
@@ -183,25 +185,29 @@ test("object equality vs sameness", () => {
     expect(obj1_1).toBe(obj1_2);
     expect(obj2_1).toBe(obj2_2);
 
-    // Equal but not same between pairs
+    // Save and delete handles to not mess with equality checks
     // @ts-expect-error
-    obj2_1!.$handle = obj1_1!.$handle;  // They only differ in handle, so solve it
+    const handle1 = obj1_1.$handle; delete obj1_1.$handle;
+    // @ts-expect-error
+    const handle2 = obj2_1.$handle; delete obj2_1.$handle;
+
+    // Equal but not same between pairs
     expect(obj1_1).not.toBe(obj2_1);
-    expect(obj1_1).toMatchObject(obj2_1!);
+    expect(obj1_1).toEqual(obj2_1);
+
+    const obj1_after_reset = ois.readObject();
+    // @ts-expect-error
+    const handle_after_reset = obj1_after_reset.$handle; delete obj1_after_reset.$handle;
 
     // After reset, properly forgetting references
-    const obj1_after_reset = ois.readObject();
     expect(obj1_after_reset).not.toBe(obj1_1)
     expect(obj1_after_reset).toEqual(obj1_1)
 
     // View undocumented internal state to prove reset works properly
-    const handle1 = (obj1_1           as any).$handle;
-    const handle2 = (obj1_after_reset as any).$handle;
     expect(typeof handle1).toBe("number");
-    expect(handle1).toBe(handle2);
+    expect(handle_after_reset).toBe(handle1);
 })
 
-test.todo("array of objects")
 test.todo("0-length blocks before object")
 test.todo("0-length blocks before block")
 test.todo("primitive crossing block boundaries")
