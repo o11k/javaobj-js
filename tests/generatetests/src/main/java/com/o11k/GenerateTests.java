@@ -393,6 +393,42 @@ public class GenerateTests {
         oos.writeObject(obj1);
     }
 
+    interface ThrowingRunnable {void run() throws Exception;}
+    static void genBlockEdgeCases(String filename) throws Exception {
+        final FileOutputStream outSerialized = new FileOutputStream(PATH_DIR + "/" + filename + ".ser");
+        final ObjectOutputStream oos = new ObjectOutputStream(outSerialized);
+
+        // Reflection voodoo to expose bout.setBlockDataMode
+        Field boutF = ObjectOutputStream.class.getDeclaredField("bout");
+        boutF.setAccessible(true);
+        Object bout = boutF.get(oos);
+        Method setBlockDataMode = bout.getClass().getDeclaredMethod("setBlockDataMode", boolean.class);
+        setBlockDataMode.setAccessible(true);
+
+        // Force blocks to start / end. Must edit underlying stream to force an empty block.
+        ThrowingRunnable startBlock = () -> {setBlockDataMode.invoke(bout, true);};
+        ThrowingRunnable endBlock = () -> {setBlockDataMode.invoke(bout, false); oos.flush();};
+        ThrowingRunnable emptyBlock = () -> {endBlock.run(); outSerialized.write(new byte[]{0x77, 0x00}); outSerialized.flush();};
+
+        // Write an int (0xdefaced) across 6 blocks ([][0d][][][ef ac][ed])
+        emptyBlock.run();
+        startBlock.run(); oos.writeByte(0x0d); endBlock.run();
+        emptyBlock.run();
+        emptyBlock.run();
+        startBlock.run(); oos.writeByte(0xef); oos.writeByte(0xac); endBlock.run();
+        startBlock.run(); oos.writeByte(0xed); endBlock.run();
+
+        // Write objects with empty blocks between them
+        oos.writeObject(new EmptyClass());
+        emptyBlock.run();
+        emptyBlock.run();
+        emptyBlock.run();
+        oos.writeObject(new EmptyClass());
+
+        oos.close();
+        outSerialized.close();
+    }
+
     public static void main(String[] args) throws Exception {
         new File(PATH_DIR).mkdirs();
 
@@ -403,5 +439,6 @@ public class GenerateTests {
         withOos("strings", GenerateTests::genStrings);
         withOos("arrays", GenerateTests::genArrays);
         withOos("obj-ref-vs-eq", GenerateTests::genObjRef);
+        genBlockEdgeCases("blocks");
     }
 }

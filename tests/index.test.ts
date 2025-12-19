@@ -169,35 +169,40 @@ test("arrays", () => {
     expect(javaArrayToJS(ois.readObject())).toMatchObject([a,b,c]);
 })
 
+function popHandle(obj: J.SerializableFallback): number {
+    if (!Object.prototype.hasOwnProperty.call(obj, "$handle"))
+        throw new Error("no $handle");
+    const handle = obj.$handle;
+    delete obj.$handle;
+    return handle;
+}
+
 const OBJ_REF_FILENAME = "obj-ref-vs-eq";
 test("object equality vs sameness", () => {
     const ois = new ObjectInputStream(readSerializedFile(OBJ_REF_FILENAME));
 
-    const obj1_1 = ois.readObject();
-    const obj2_1 = ois.readObject();
+    const obj1_1 = ois.readObject() as J.SerializableFallback;
+    const obj2_1 = ois.readObject() as J.SerializableFallback;
     const obj1_2 = ois.readObject();
     const obj2_2 = ois.readObject();
 
-    expect(obj1_1).not.toBeNull();
-    expect(obj2_1).not.toBeNull();
+    expect(obj1_1).toBeInstanceOf(J.SerializableFallback);
+    expect(obj2_1).toBeInstanceOf(J.SerializableFallback);
 
     // The pairs are the same (===)
     expect(obj1_1).toBe(obj1_2);
     expect(obj2_1).toBe(obj2_2);
 
     // Save and delete handles to not mess with equality checks
-    // @ts-expect-error
-    const handle1 = obj1_1.$handle; delete obj1_1.$handle;
-    // @ts-expect-error
-    const handle2 = obj2_1.$handle; delete obj2_1.$handle;
+    const handle1 = popHandle(obj1_1);
+    const handle2 = popHandle(obj2_1);
 
     // Equal but not same between pairs
     expect(obj1_1).not.toBe(obj2_1);
     expect(obj1_1).toEqual(obj2_1);
 
-    const obj1_after_reset = ois.readObject();
-    // @ts-expect-error
-    const handle_after_reset = obj1_after_reset.$handle; delete obj1_after_reset.$handle;
+    const obj1_after_reset = ois.readObject() as J.SerializableFallback;
+    const handle_after_reset = popHandle(obj1_after_reset);
 
     // After reset, properly forgetting references
     expect(obj1_after_reset).not.toBe(obj1_1)
@@ -208,9 +213,21 @@ test("object equality vs sameness", () => {
     expect(handle_after_reset).toBe(handle1);
 })
 
-test.todo("0-length blocks before object")
-test.todo("0-length blocks before block")
-test.todo("primitive crossing block boundaries")
+const BLOCKS_FILENAME = "blocks"
+test("block data edge cases", () => {
+    const ois = new ObjectInputStream(readSerializedFile(BLOCKS_FILENAME));
+
+    expect(ois.readInt()).toBe(0xdefaced);
+
+    const obj1 = ois.readObject() as J.SerializableFallback;
+    const obj2 = ois.readObject() as J.SerializableFallback;
+    popHandle(obj1);
+    popHandle(obj2);
+
+    expect(obj1).toEqual(obj2);
+    expect(obj1).not.toBe(obj2);
+})
+
 test.todo("circular reference")
 test.todo("multiple resets")
 test.todo("eof after reset")
