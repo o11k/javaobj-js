@@ -270,9 +270,9 @@ class HandleTable {
     }
 
     getObject(handle: number): J.Object {
-        const result = this.table.get(handle);
-        if (result === undefined) throw new StreamCorruptedException("Object handle doesn't exist: " + handle);
-        return result;
+        if (!this.table.has(handle))
+            throw new StreamCorruptedException("Object handle doesn't exist: " + handle);
+        return this.table.get(handle)!;
     }
 
     replaceObject(handle: number, oldObj: J.Object, newObj: J.Object): void {
@@ -472,7 +472,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         result.readExternal(subOis, classDesc);
         if (classDesc.flags & SC_BLOCK_DATA) {
             subOis.readAllContents();  // Skip unread annotations
-            if (this.read1() !== TC_ENDBLOCKDATA) throw new StreamCorruptedException("Expected TC_ENDBLOCKDATA");
+            this._expectEndBlock();
         }
         this.contextStack.pop();
 
@@ -484,6 +484,12 @@ export class ObjectInputStreamParser extends PrimitiveInput {
         }
 
         return result;
+    }
+
+    private _expectEndBlock() {
+        const tc = this.read1();
+        if (tc === -1) throw new EOFException("Expected TC_ENDBLOCKDATA");
+        if (tc !== TC_ENDBLOCKDATA) throw new StreamCorruptedException("Expected TC_ENDBLOCKDATA");
     }
 
     protected parseSerializable(classDesc: J.ClassDesc): Serializable {
@@ -523,7 +529,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
             }
             if (currDesc.flags & SC_WRITE_METHOD) {
                 subOis.readAllContents();  // Skip unread annotations
-                if (this.read1() !== TC_ENDBLOCKDATA) throw new StreamCorruptedException("Expected TC_ENDBLOCKDATA");
+                this._expectEndBlock();
             }
             this.contextStack.pop();
         }
@@ -715,8 +721,7 @@ export class ObjectInputStreamParser extends PrimitiveInput {
 
     private _parseEndBlockTerminatedContents(): J.Contents {
         const contents = this.parseContents(true);
-        const endBlock = this.read1();
-        if (endBlock !== TC_ENDBLOCKDATA) throw new StreamCorruptedException("Expected TC_ENDBLOCKDATA");
+        this._expectEndBlock();
         return contents;
     }
 
