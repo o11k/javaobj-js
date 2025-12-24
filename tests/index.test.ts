@@ -5,8 +5,8 @@ import fs from 'node:fs';
 
 import {
     ObjectInputStream, J, Serializable, Externalizable,
-    TC_REFERENCE, TC_OBJECT, TC_NULL, TC_CLASSDESC, SC_SERIALIZABLE, TC_STRING, TC_BLOCKDATA, TC_ARRAY, TC_ENDBLOCKDATA, SC_WRITE_METHOD,
 } from '../src/index';
+import * as c from '../src/constants';
 import { EOFException, StreamCorruptedException, UTFDataFormatException } from '../src/exceptions';
 
 const PATH_DIR = "tests/tmp";
@@ -394,7 +394,7 @@ test("unknown TC", () => {
 test("prevObject doesnt exist", () => {
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,  // Header
-        TC_REFERENCE,
+        c.TC_REFERENCE,
         0x69, 0x69, 0x69, 0x69,  // Bad reference
     ]));
     expect(() => ois.readObject()).toThrow(StreamCorruptedException);
@@ -403,7 +403,7 @@ test("prevObject doesnt exist", () => {
 test("utf-8 error", () => {
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,  // Header
-        TC_STRING,
+        c.TC_STRING,
         0x00, 0x02,
         'A'.charCodeAt(0), 0b1010_1010,
     ]));
@@ -411,7 +411,7 @@ test("utf-8 error", () => {
 
     const ois2 = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,  // Header
-        TC_STRING,
+        c.TC_STRING,
         0x00, 0x02,
         'A'.charCodeAt(0), "B".charCodeAt(0),
     ]));
@@ -421,8 +421,8 @@ test("utf-8 error", () => {
 test("object with null classDesc", () => {
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,  // Header
-        TC_OBJECT,
-        TC_NULL,
+        c.TC_OBJECT,
+        c.TC_NULL,
     ]));
     expect(() => ois.readObject()).toThrow(StreamCorruptedException);
 })
@@ -431,57 +431,57 @@ test("not serializable and not externalizable", () => {
     // Doesn't work with flags = 0
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,                          // Header
-        TC_OBJECT,
-        TC_CLASSDESC,
+        c.TC_OBJECT,
+        c.TC_CLASSDESC,
         0x00, 0x01, 'A'.charCodeAt(0),                   // Class name "A"
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // serialVersionUID
         0x00,                                            // flags (nothing)
-        0x00, 0x00, TC_ENDBLOCKDATA, TC_NULL
+        0x00, 0x00, c.TC_ENDBLOCKDATA, c.TC_NULL
     ]));
     expect(() => ois.readObject()).toThrow(StreamCorruptedException);
 
-    // Works with flags = SC_SERIALIZABLE
+    // Works with flags = c.SC_SERIALIZABLE
     const ois2 = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,                          // Header
-        TC_OBJECT,
-        TC_CLASSDESC,
+        c.TC_OBJECT,
+        c.TC_CLASSDESC,
         0x00, 0x01, 'A'.charCodeAt(0),                   // Class name "A"
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // serialVersionUID
-        SC_SERIALIZABLE,
-        0x00, 0x00, TC_ENDBLOCKDATA, TC_NULL
+        c.SC_SERIALIZABLE,
+        0x00, 0x00, c.TC_ENDBLOCKDATA, c.TC_NULL
     ]));
     expect(() => ois2.readObject()).not.toThrow();
 })
 
-test("annotations without TC_ENDBLOCKDATA", () => {
+test("annotations without c.TC_ENDBLOCKDATA", () => {
     // Object: will read entire stream until EOF
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,                          // Header
-        TC_OBJECT,
-        TC_CLASSDESC,
+        c.TC_OBJECT,
+        c.TC_CLASSDESC,
         0x00, 0x01, 'A'.charCodeAt(0),                   // Class name "A"
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // serialVersionUID
-        SC_SERIALIZABLE | SC_WRITE_METHOD,
-        0x00, 0x00, TC_ENDBLOCKDATA, TC_NULL,
+        c.SC_SERIALIZABLE | c.SC_WRITE_METHOD,
+        0x00, 0x00, c.TC_ENDBLOCKDATA, c.TC_NULL,
 
-        TC_BLOCKDATA, 0x01, 0x69,                        // Random block, will be interpreted as annotation
+        c.TC_BLOCKDATA, 0x01, 0x69,                        // Random block, will be interpreted as annotation
     ]));
     expect(() => ois.readObject()).toThrow(EOFException);
 
     // Class: will throw stream corrupted
     const ois2 = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,                          // Header
-        TC_OBJECT,
-        TC_CLASSDESC,
+        c.TC_OBJECT,
+        c.TC_CLASSDESC,
         0x00, 0x01, 'A'.charCodeAt(0),                   // Class name "A"
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // serialVersionUID
-        SC_SERIALIZABLE | SC_WRITE_METHOD,
+        c.SC_SERIALIZABLE | c.SC_WRITE_METHOD,
         0x00, 0x01,
         'I'.charCodeAt(0), 0x00, 0x01, 'i'.charCodeAt(0),
-        TC_NULL, // TC_ENDBLOCKDATA,                     // annotations=[null], then no end block
-        TC_NULL,
+        c.TC_NULL, // c.TC_ENDBLOCKDATA,                     // annotations=[null], then no end block
+        c.TC_NULL,
         0x69, 0x69, 0x69, 0x69,                          // field i=0x69696969
-        TC_BLOCKDATA, 0x01, 0x69,                        // Random block, will be interpreted as annotation
+        c.TC_BLOCKDATA, 0x01, 0x69,                        // Random block, will be interpreted as annotation
     ]));
     expect(() => ois2.readObject()).toThrow(StreamCorruptedException);
 })
@@ -489,14 +489,14 @@ test("annotations without TC_ENDBLOCKDATA", () => {
 test("bad field typecode", () => {
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,                          // Header
-        TC_OBJECT,
-        TC_CLASSDESC,
+        c.TC_OBJECT,
+        c.TC_CLASSDESC,
         0x00, 0x01, 'A'.charCodeAt(0),                   // Class name "A"
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // serialVersionUID
-        SC_SERIALIZABLE,
+        c.SC_SERIALIZABLE,
         0x00, 0x01,
         'X'.charCodeAt(0), 0x00, 0x01, 'i'.charCodeAt(0), // Field "i" with typecode X
-        TC_ENDBLOCKDATA, TC_NULL,
+        c.TC_ENDBLOCKDATA, c.TC_NULL,
         0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
     ]));
     expect(() => ois.readObject()).toThrow(StreamCorruptedException);
@@ -505,14 +505,14 @@ test("bad field typecode", () => {
 test("bad array classDesc", () => {
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,                          // Header
-        TC_ARRAY,
-        TC_CLASSDESC,
+        c.TC_ARRAY,
+        c.TC_CLASSDESC,
         0x00, 0x01, 'A'.charCodeAt(0),                   // Class name "A"
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // serialVersionUID
-        SC_SERIALIZABLE,
+        c.SC_SERIALIZABLE,
         0x00, 0x01,
         'I'.charCodeAt(0), 0x00, 0x01, 'i'.charCodeAt(0),
-        TC_ENDBLOCKDATA, TC_NULL,
+        c.TC_ENDBLOCKDATA, c.TC_NULL,
         0x00, 0x00, 0x00, 0x00                           // size = 0
     ]));
     expect(() => ois.readObject()).toThrow(StreamCorruptedException);
@@ -521,21 +521,21 @@ test("bad array classDesc", () => {
 test("eof in middle of primitive / object", () => {
     const ois = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,    // Header
-        TC_BLOCKDATA, 0x03,
+        c.TC_BLOCKDATA, 0x03,
         0x69, 0x69, 0x69, // an int requires 1 more byte
     ]));
     expect(() => ois.readInt()).toThrow(EOFException);
 
     const ois2 = new ObjectInputStream(new Uint8Array([
         0xac, 0xed, 0x00, 0x05,                          // Header
-        TC_OBJECT,
-        TC_CLASSDESC,
+        c.TC_OBJECT,
+        c.TC_CLASSDESC,
         0x00, 0x01, 'A'.charCodeAt(0),                   // Class name "A"
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // serialVersionUID
-        SC_SERIALIZABLE,
+        c.SC_SERIALIZABLE,
         0x00, 0x01,
         'I'.charCodeAt(0), 0x00, 0x01, 'i'.charCodeAt(0),
-        TC_ENDBLOCKDATA, TC_NULL,
+        c.TC_ENDBLOCKDATA, c.TC_NULL,
         0x69, // expecting 3 more bytes for field "int i"
     ]));
     expect(() => ois2.readObject()).toThrow(EOFException);

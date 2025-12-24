@@ -9,34 +9,37 @@ import {
     NotActiveException,
     NotImplementedError,
 } from './exceptions';
+import {  // TODO pretty
+    TC_NULL,
+    TC_REFERENCE,
+    TC_CLASSDESC,
+    TC_OBJECT,
+    TC_STRING,
+    TC_ARRAY,
+    TC_CLASS,
+    TC_BLOCKDATA,
+    TC_ENDBLOCKDATA,
+    TC_RESET,
+    TC_BLOCKDATALONG,
+    TC_EXCEPTION,
+    TC_LONGSTRING,
+    TC_PROXYCLASSDESC,
+    TC_ENUM,
+
+    baseWireHandle,
+
+    SC_WRITE_METHOD,
+    SC_BLOCK_DATA,
+    SC_SERIALIZABLE,
+    SC_EXTERNALIZABLE,
+    SC_ENUM,
+
+    STREAM_MAGIC,
+    STREAM_VERSION,
+} from './constants';
 import { builtinSerializables, builtinExternalizables } from './classes'
 
-export const STREAM_MAGIC      = 0xaced;
-export const STREAM_VERSION    = 5;
 
-export const TC_NULL           = 0x70;
-export const TC_REFERENCE      = 0x71;
-export const TC_CLASSDESC      = 0x72;
-export const TC_OBJECT         = 0x73;
-export const TC_STRING         = 0x74;
-export const TC_ARRAY          = 0x75;
-export const TC_CLASS          = 0x76;
-export const TC_BLOCKDATA      = 0x77;
-export const TC_ENDBLOCKDATA   = 0x78;
-export const TC_RESET          = 0x79;
-export const TC_BLOCKDATALONG  = 0x7A;
-export const TC_EXCEPTION      = 0x7B;
-export const TC_LONGSTRING     = 0x7C;
-export const TC_PROXYCLASSDESC = 0x7D;
-export const TC_ENUM           = 0x7E;
-
-export const baseWireHandle    = 0x7E0000;
-
-export const SC_WRITE_METHOD   = 0x01;  // if SC_SERIALIZABLE
-export const SC_BLOCK_DATA     = 0x08;  // if SC_EXTERNALIZABLE
-export const SC_SERIALIZABLE   = 0x02;
-export const SC_EXTERNALIZABLE = 0x04;
-export const SC_ENUM           = 0x10;
 
 export namespace J {
     export type Contents = Content[];
