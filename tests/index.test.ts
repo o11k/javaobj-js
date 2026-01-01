@@ -4,10 +4,14 @@
 import fs from 'node:fs';
 
 import {
-    ObjectInputStream, J, Serializable, Externalizable,
+    ObjectInputStream, Serializable, Externalizable,
+    BaseFallbackSerializable,
+    BaseFallbackExternalizable,
 } from '../src/index';
-import * as c from '../src/constants';
-import { EOFException, StreamCorruptedException, UTFDataFormatException } from '../src/exceptions';
+import { EOFException, InvalidClassException, NullPointerException, StreamCorruptedException, UTFDataFormatException } from '../src/exceptions';
+
+// For constants
+const c = ObjectInputStream;
 
 const PATH_DIR = "tests/tmp";
 
@@ -121,7 +125,7 @@ test("primitive wrappers: with handlers", () => {
 
 test("primitive wrappers: without handlers", () => {
     const ois = new ObjectInputStream(readSerializedFile(PRIMITIVE_WRAPPERS_FILENAME), {
-        initialSerializables: new Map(),
+        initialClasses: {serializable: new Map()},
     });
 
     expect(ois.readObject()).toMatchObject({value: 5       });  // Byte
@@ -151,70 +155,47 @@ test("strings", () => {
 const ARRAYS_FILENAME = "arrays";
 test("arrays", () => {
     const ois = new ObjectInputStream(readSerializedFile(ARRAYS_FILENAME), {
-        initialSerializables: new Map(),  // No primitive wrapper handlers, to prove that values are actually primitive
+        initialClasses: {serializable: new Map()},  // No primitive wrapper handlers, to prove that values are actually primitive
     });
 
-    // It's hard to test equality of classes that extend Array, because of jest quirks
-    function javaArrayToJS(arr: any): any[] {
-        if (!(arr instanceof J.Array)) return arr;
-        return Array.from(arr, item => javaArrayToJS(item));
-    }
-
-    expect(javaArrayToJS(ois.readObject())).toEqual([]);
+    expect(ois.readObject()).toEqual([]);
 
     const allBytes = Array.from({length: 256}, (_, i) => i-128);
-    expect(javaArrayToJS(ois.readObject())).toEqual(allBytes);
+    expect(ois.readObject()).toEqual(allBytes);
 
-    expect(javaArrayToJS(ois.readObject())).toEqual([[1,2,3], [4,5,6], [7,8,9]]);
+    expect(ois.readObject()).toEqual([[1,2,3], [4,5,6], [7,8,9]]);
 
     const a = {i: 1, obj: null};
     const b = {i: 2, obj: a};
     const c = {i: 3, obj: b};
-    expect(javaArrayToJS(ois.readObject())).toMatchObject([a,b,c]);
+    expect(ois.readObject()).toMatchObject([a,b,c]);
 })
-
-function popHandle(obj: J.SerializableFallback): number {
-    if (!Object.prototype.hasOwnProperty.call(obj, "$handle"))
-        throw new Error("no $handle");
-    const handle = obj.$handle;
-    delete obj.$handle;
-    return handle;
-}
 
 const OBJ_REF_FILENAME = "obj-ref-vs-eq";
 test("object equality vs sameness", () => {
     const ois = new ObjectInputStream(readSerializedFile(OBJ_REF_FILENAME));
 
-    const obj1_1 = ois.readObject() as J.SerializableFallback;
-    const obj2_1 = ois.readObject() as J.SerializableFallback;
+    const obj1_1 = ois.readObject();
+    const obj2_1 = ois.readObject();
     const obj1_2 = ois.readObject();
     const obj2_2 = ois.readObject();
 
-    expect(obj1_1).toBeInstanceOf(J.SerializableFallback);
-    expect(obj2_1).toBeInstanceOf(J.SerializableFallback);
+    expect(obj1_1).toBeInstanceOf(BaseFallbackSerializable);
+    expect(obj2_1).toBeInstanceOf(BaseFallbackSerializable);
 
     // The pairs are the same (===)
     expect(obj1_1).toBe(obj1_2);
     expect(obj2_1).toBe(obj2_2);
 
-    // Save and delete handles to not mess with equality checks
-    const handle1 = popHandle(obj1_1);
-    const handle2 = popHandle(obj2_1);
-
     // Equal but not same between pairs
     expect(obj1_1).not.toBe(obj2_1);
     expect(obj1_1).toEqual(obj2_1);
 
-    const obj1_after_reset = ois.readObject() as J.SerializableFallback;
-    const handle_after_reset = popHandle(obj1_after_reset);
+    const obj1_after_reset = ois.readObject();
 
     // After reset, properly forgetting references
     expect(obj1_after_reset).not.toBe(obj1_1)
     expect(obj1_after_reset).toEqual(obj1_1)
-
-    // View undocumented internal state to prove reset works properly
-    expect(typeof handle1).toBe("number");
-    expect(handle_after_reset).toBe(handle1);
 })
 
 const BLOCKS_FILENAME = "blocks"
@@ -223,10 +204,8 @@ test("block data edge cases", () => {
 
     expect(ois.readInt()).toBe(0xdefaced);
 
-    const obj1 = ois.readObject() as J.SerializableFallback;
-    const obj2 = ois.readObject() as J.SerializableFallback;
-    popHandle(obj1);
-    popHandle(obj2);
+    const obj1 = ois.readObject();
+    const obj2 = ois.readObject();
 
     expect(obj1).toEqual(obj2);
     expect(obj1).not.toBe(obj2);
@@ -237,7 +216,7 @@ test("circular reference", () => {
     const ois = new ObjectInputStream(readSerializedFile(CIRCULAR_FILENAME));
 
     const obj = ois.readObject();
-    expect(obj).toBeInstanceOf(J.SerializableFallback);
+    expect(obj).toBeInstanceOf(BaseFallbackSerializable);
     expect((obj as any)?.obj).toBe(obj);
 })
 
@@ -250,9 +229,9 @@ const HANDLERS_FILENAME = "handlers";
 const CLASS_PREFIX = "com.o11k.GenerateTests$"
 test("handlers behavior", () => {
     // @ts-expect-error
-    const tell = (ois: ObjectInputStream) => ois.parser.offset;
+    const tell = (ois: ObjectInputStream) => ois.offset;
     // @ts-expect-error
-    const seek = (ois: ObjectInputStream, offset: number) => {ois.parser.offset = offset};
+    const seek = (ois: ObjectInputStream, offset: number) => {ois.offset = offset};
 
     class SerNoW implements Serializable {
         i: number; constructor(i=0) {this.i = i;}
@@ -311,22 +290,29 @@ test("handlers behavior", () => {
     expect(oisHandlers.readObject()).toEqual(new SerWExtra(3));
     expect(EmptySerW.prototype.readObject).toHaveBeenCalled();
     jest.clearAllMocks();
-    
+
     expect(oisHandlers.readObject()).toEqual(new SerWNoFields(4));
     const afterSerWNoFields = tell(oisHandlers);
     expect(oisHandlers.readObject()).toEqual(new SerWMisplacedFields(5));
     const afterSerWMisplacedFields = tell(oisHandlers);
     expect(oisHandlers.readObject()).toEqual(new ExtChild(6));
-    // expect(oosHandlers.readObject()).toEqual(new ExtChild(7));  // TODO
-    
+    expect(oisHandlers.readObject()).toEqual(new ExtChild(7));
+
     const oisNoHandlers = new ObjectInputStream(readSerializedFile(HANDLERS_FILENAME));
     oisNoHandlers.registerSerializable(CLASS_PREFIX+"EmptySerW", EmptySerW);  // Registered only to check if parsed
-    
-    expect(oisNoHandlers.readObject()).toMatchObject({i: 1, $classDesc: {className: CLASS_PREFIX+"SerNoW"}});
-    expect(oisNoHandlers.readObject()).toMatchObject({i: 2, $classDesc: {className: CLASS_PREFIX+"SerW"}});
-    
+
+    const obj_SerNoW = oisNoHandlers.readObject();
+    expect(obj_SerNoW).toMatchObject({i: 1});
+    expect(Object.getPrototypeOf(obj_SerNoW).constructor.$desc).toMatchObject({name: CLASS_PREFIX+"SerNoW"});
+
+    const obj_SerW = oisNoHandlers.readObject();
+    expect(obj_SerW).toMatchObject({i: 2});
+    expect(Object.getPrototypeOf(obj_SerW).constructor.$desc).toMatchObject({name: CLASS_PREFIX+"SerW"});
+
     jest.spyOn(EmptySerW.prototype, "readObject");
-    expect(oisNoHandlers.readObject()).toMatchObject({i: 3, $classDesc: {className: CLASS_PREFIX+"SerWExtra"}});
+    const obj_SerWExtra = oisNoHandlers.readObject();
+    expect(obj_SerWExtra).toMatchObject({i: 3});
+    expect(Object.getPrototypeOf(obj_SerWExtra).constructor.$desc).toMatchObject({name: CLASS_PREFIX+"SerWExtra"});
     expect(EmptySerW.prototype.readObject).toHaveBeenCalled();
     jest.clearAllMocks();
 
@@ -336,15 +322,15 @@ test("handlers behavior", () => {
     expect(() => oisNoHandlers.readObject()).toThrow(StreamCorruptedException);
     seek(oisNoHandlers, afterSerWMisplacedFields);
 
-    const externalizable = oisNoHandlers.readObject() as J.ExternalizableFallback;
-    expect(externalizable).toMatchObject({classDesc: {className: CLASS_PREFIX+"ExtChild"}});
-    expect(externalizable.annotations.length).toBe(2);
-    expect(new Uint8Array(externalizable.annotations[0] as J.BlockData)).toEqual(new Uint8Array([
+    const externalizable = oisNoHandlers.readObject() as BaseFallbackExternalizable;
+    expect(Object.getPrototypeOf(externalizable).constructor.$desc).toMatchObject({name: CLASS_PREFIX+"ExtChild"});
+    expect(externalizable.$annotation.length).toBe(2);
+    expect(new Uint8Array(externalizable.$annotation[0])).toEqual(new Uint8Array([
         0,0,0,6,
         0,"testicle".length,
         ...new TextEncoder().encode("testicle"),
     ]))
-    expect(externalizable.annotations[1]).toEqual(new EmptySerW())
+    expect(externalizable.$annotation[1]).toEqual(new EmptySerW())
 })
 
 // User errors
@@ -424,7 +410,7 @@ test("object with null classDesc", () => {
         c.TC_OBJECT,
         c.TC_NULL,
     ]));
-    expect(() => ois.readObject()).toThrow(StreamCorruptedException);
+    expect(() => ois.readObject()).toThrow(NullPointerException);
 })
 
 test("not serializable and not externalizable", () => {
@@ -438,7 +424,7 @@ test("not serializable and not externalizable", () => {
         0x00,                                            // flags (nothing)
         0x00, 0x00, c.TC_ENDBLOCKDATA, c.TC_NULL
     ]));
-    expect(() => ois.readObject()).toThrow(StreamCorruptedException);
+    expect(() => ois.readObject()).toThrow(InvalidClassException);
 
     // Works with flags = c.SC_SERIALIZABLE
     const ois2 = new ObjectInputStream(new Uint8Array([
@@ -499,7 +485,7 @@ test("bad field typecode", () => {
         c.TC_ENDBLOCKDATA, c.TC_NULL,
         0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69, 0x69,
     ]));
-    expect(() => ois.readObject()).toThrow(StreamCorruptedException);
+    expect(() => ois.readObject()).toThrow(InvalidClassException);
 })
 
 test("bad array classDesc", () => {

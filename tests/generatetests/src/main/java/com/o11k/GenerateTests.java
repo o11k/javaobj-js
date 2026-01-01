@@ -486,9 +486,9 @@ public class GenerateTests {
         oos.writeObject(new SerWMisplacedFields(5));
         oos.writeObject(new ExtChild(6));
 
-        // oos.reset();
-        // oos.useProtocolVersion(1);
-        // oos.writeObject(new ExtChild(7));
+        oos.reset();
+        oos.useProtocolVersion(1);
+        oos.writeObject(new ExtChild(7));
     }
 
     public static void main(String[] args) throws Exception {

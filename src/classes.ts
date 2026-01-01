@@ -1,4 +1,4 @@
-import type { Serializable, Externalizable, ObjectInputStream } from ".";
+import type { Serializable, SerializableCtor, Enum, ObjectInputStream, ExternalizableCtor } from ".";
 import { InvalidObjectException } from './exceptions';
 
 export namespace java {
@@ -130,7 +130,7 @@ export namespace java {
     }
 }
 
-export const builtinSerializables = new Map<string, new () => Serializable>([
+export const builtinSerializables = new Map<string, SerializableCtor>([
     ["java.lang.Byte", java.lang.Byte],
     ["java.lang.Short", java.lang.Short],
     ["java.lang.Integer", java.lang.Integer],
@@ -151,4 +151,6 @@ export const builtinSerializables = new Map<string, new () => Serializable>([
     ["java.util.TreeMap", java.util.TreeMap],
 ]);
 
-export const builtinExternalizables = new Map<string, new () => Externalizable>([]);
+export const builtinExternalizables = new Map<string, ExternalizableCtor>([]);
+export const builtinEnums = new Map<string, Enum>([]);
+export const builtinClasses = new Map<string, any>([]);

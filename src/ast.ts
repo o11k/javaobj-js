@@ -1,4 +1,4 @@
-import * as c from './constants';
+import type ObjecctInputStream from '.';
 
 
 // ========== CONTRACT ==========
@@ -16,7 +16,6 @@ import * as c from './constants';
 export interface Ast {
     data: Uint8Array
     root: RootNode
-    error?: string
 }
 export default Ast
 
@@ -24,31 +23,32 @@ export interface RootNode extends BaseNode<[MagicNode, VersionNode, ContentsNode
     type: "root"
 }
 
-export interface MagicNode extends BaseNode<null> {type: "magic", value: typeof c.STREAM_MAGIC}
-export interface VersionNode extends BaseNode<null> {type: "version", value: typeof c.STREAM_VERSION}
+export interface MagicNode extends BaseNode<null>   {type: "magic",   value: typeof ObjecctInputStream.STREAM_MAGIC}
+export interface VersionNode extends BaseNode<null> {type: "version", value: typeof ObjecctInputStream.STREAM_VERSION}
 
 export interface ContentsNode extends BaseNode<(BlockDataSequenceNode | ObjectNode)[]> {
     type: "contents"
 }
 
-export interface BaseNode<C extends BaseNode<any>[] | null> {
+interface BaseNode<C extends BaseNode<any>[] | null> {
     type: string
     span: {start: number, end: number}
     children: C
+    jsValue?: any
 }
 
 
 // ========== Primitives ==========
 
-export type PrimitiveNode = NumberNode | CharNode | BooleanNode | LongNode
+export type PrimitiveNode = ByteNode | UnsignedByteNode | ShortNode | UnsignedShortNode | IntNode | FloatNode | DoubleNode | CharNode | BooleanNode | LongNode
 
-export interface BasePrimitiveNode extends BaseNode<null> {
+interface BasePrimitiveNode extends BaseNode<null> {
     type: "primitive"
     dataType: string
     value: number | string | boolean | bigint
 }
-export interface NumberNode extends BasePrimitiveNode {
-    dataType: "byte" | "unsigned-byte" | "short" | "unsigned-short" | "int" | "float" | "double"
+interface NumberNode extends BasePrimitiveNode {
+    dataType: string
     value: number
 }
 export type ByteNode          = NumberNode & {dataType: "byte"}
@@ -89,6 +89,7 @@ export interface BytesNode extends BaseNode<null> {
 
 export interface SkippedNode extends BaseNode<null> {
     type: "skipped"
+    reason: string
 }
 
 
@@ -112,7 +113,7 @@ export interface BlockDataNode extends BaseNode<
 export type ObjectNode = NewObjectNode | NewClassNode | NewArrayNode | NewStringNode | NewEnumNode | NewClassDescNode | PrevObjectNode | NullNode | ExceptionNode | ResetNode
 export type ClassDescNode = NewClassDescNode | NullNode | PrevObjectNode
 
-export interface BaseObjectNode<C extends [TCNode, ...BaseNode<any>[]]> extends BaseNode<C> {
+interface BaseObjectNode<C extends [TCNode, ...BaseNode<any>[]]> extends BaseNode<C> {
     type: "object"
     objectType: string
 }
@@ -178,7 +179,7 @@ export interface ProxyClassDescInfoNode extends BaseNode<[IntNode, ...UtfNode[],
 
 export type ClassDataNode = NoWrClassNode | WrClassNode | ExternalClassNode | OldExternalClassNode
 
-export interface BaseClassDataNode<C extends BaseNode<any>[] | null> extends BaseNode<C> {
+interface BaseClassDataNode<C extends BaseNode<any>[] | null> extends BaseNode<C> {
     type: "class-data"
     classType: string
 }
@@ -227,39 +228,25 @@ export interface ObjectDescNode extends BaseNode<[UnsignedByteNode, UtfNode, Obj
 
 // ========== Misc. ==========
 
-export interface TCNode extends BaseNode<null> {
+interface TCNode extends BaseNode<null> {
     type: "tc"
-    value: typeof c.TC_NULL |
-           typeof c.TC_REFERENCE |
-           typeof c.TC_CLASSDESC |
-           typeof c.TC_OBJECT |
-           typeof c.TC_STRING |
-           typeof c.TC_ARRAY |
-           typeof c.TC_CLASS |
-           typeof c.TC_BLOCKDATA |
-           typeof c.TC_ENDBLOCKDATA |
-           typeof c.TC_RESET |
-           typeof c.TC_BLOCKDATALONG |
-           typeof c.TC_EXCEPTION |
-           typeof c.TC_LONGSTRING |
-           typeof c.TC_PROXYCLASSDESC |
-           typeof c.TC_ENUM
+    value: number
 }
 
-export type TC_NULL_Node           = TCNode & {value: typeof c.TC_NULL}
-export type TC_REFERENCE_Node      = TCNode & {value: typeof c.TC_REFERENCE}
-export type TC_CLASSDESC_Node      = TCNode & {value: typeof c.TC_CLASSDESC}
-export type TC_OBJECT_Node         = TCNode & {value: typeof c.TC_OBJECT}
-export type TC_STRING_Node         = TCNode & {value: typeof c.TC_STRING}
-export type TC_ARRAY_Node          = TCNode & {value: typeof c.TC_ARRAY}
-export type TC_CLASS_Node          = TCNode & {value: typeof c.TC_CLASS}
-export type TC_BLOCKDATA_Node      = TCNode & {value: typeof c.TC_BLOCKDATA}
-export type TC_ENDBLOCKDATA_Node   = TCNode & {value: typeof c.TC_ENDBLOCKDATA}
-export type TC_RESET_Node          = TCNode & {value: typeof c.TC_RESET}
-export type TC_BLOCKDATALONG_Node  = TCNode & {value: typeof c.TC_BLOCKDATALONG}
-export type TC_EXCEPTION_Node      = TCNode & {value: typeof c.TC_EXCEPTION}
-export type TC_LONGSTRING_Node     = TCNode & {value: typeof c.TC_LONGSTRING}
-export type TC_PROXYCLASSDESC_Node = TCNode & {value: typeof c.TC_PROXYCLASSDESC}
-export type TC_ENUM_Node           = TCNode & {value: typeof c.TC_ENUM}
+export type TC_NULL_Node           = TCNode & {value: typeof ObjecctInputStream.TC_NULL}
+export type TC_REFERENCE_Node      = TCNode & {value: typeof ObjecctInputStream.TC_REFERENCE}
+export type TC_CLASSDESC_Node      = TCNode & {value: typeof ObjecctInputStream.TC_CLASSDESC}
+export type TC_OBJECT_Node         = TCNode & {value: typeof ObjecctInputStream.TC_OBJECT}
+export type TC_STRING_Node         = TCNode & {value: typeof ObjecctInputStream.TC_STRING}
+export type TC_ARRAY_Node          = TCNode & {value: typeof ObjecctInputStream.TC_ARRAY}
+export type TC_CLASS_Node          = TCNode & {value: typeof ObjecctInputStream.TC_CLASS}
+export type TC_BLOCKDATA_Node      = TCNode & {value: typeof ObjecctInputStream.TC_BLOCKDATA}
+export type TC_ENDBLOCKDATA_Node   = TCNode & {value: typeof ObjecctInputStream.TC_ENDBLOCKDATA}
+export type TC_RESET_Node          = TCNode & {value: typeof ObjecctInputStream.TC_RESET}
+export type TC_BLOCKDATALONG_Node  = TCNode & {value: typeof ObjecctInputStream.TC_BLOCKDATALONG}
+export type TC_EXCEPTION_Node      = TCNode & {value: typeof ObjecctInputStream.TC_EXCEPTION}
+export type TC_LONGSTRING_Node     = TCNode & {value: typeof ObjecctInputStream.TC_LONGSTRING}
+export type TC_PROXYCLASSDESC_Node = TCNode & {value: typeof ObjecctInputStream.TC_PROXYCLASSDESC}
+export type TC_ENUM_Node           = TCNode & {value: typeof ObjecctInputStream.TC_ENUM}
 
 export type Handle = {epoch: number, handle: number}
