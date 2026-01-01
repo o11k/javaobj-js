@@ -1,6 +1,8 @@
-# javaobj-js
+# object-input-stream
 
-ObjectInputStream for JavaScript. Similar to Python's javaobj-py3.
+Java's ObjectInputStream for JavaScript.
+
+Read Java serialized objects in Node and the browser.
 
 ## Limitations
 
