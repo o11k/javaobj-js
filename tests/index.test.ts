@@ -4,9 +4,7 @@
 import fs from 'node:fs';
 
 import {
-    ObjectInputStream, Serializable, Externalizable,
-    BaseFallbackSerializable,
-    BaseFallbackExternalizable,
+    ObjectInputStream, Serializable, Externalizable, internal
 } from '../src/index';
 import { EOFException, InvalidClassException, NullPointerException, StreamCorruptedException, UTFDataFormatException } from '../src/exceptions';
 
@@ -38,6 +36,8 @@ function toFloat32(d: number): number {
 const PRIMITIVES_FILENAME = "primitives"
 test("sanity: primitives", () => {
     const ois = new ObjectInputStream(readSerializedFile(PRIMITIVES_FILENAME));
+
+    console.log([...readSerializedFile(PRIMITIVES_FILENAME)])
 
     expect(ois.readByte()   ).toBe(69)
     expect(ois.readChar()   ).toBe('✔')
@@ -180,8 +180,8 @@ test("object equality vs sameness", () => {
     const obj1_2 = ois.readObject();
     const obj2_2 = ois.readObject();
 
-    expect(obj1_1).toBeInstanceOf(BaseFallbackSerializable);
-    expect(obj2_1).toBeInstanceOf(BaseFallbackSerializable);
+    expect(obj1_1).toBeInstanceOf(internal.BaseFallbackSerializable);
+    expect(obj2_1).toBeInstanceOf(internal.BaseFallbackSerializable);
 
     // The pairs are the same (===)
     expect(obj1_1).toBe(obj1_2);
@@ -216,7 +216,7 @@ test("circular reference", () => {
     const ois = new ObjectInputStream(readSerializedFile(CIRCULAR_FILENAME));
 
     const obj = ois.readObject();
-    expect(obj).toBeInstanceOf(BaseFallbackSerializable);
+    expect(obj).toBeInstanceOf(internal.BaseFallbackSerializable);
     expect((obj as any)?.obj).toBe(obj);
 })
 
@@ -322,7 +322,7 @@ test("handlers behavior", () => {
     expect(() => oisNoHandlers.readObject()).toThrow(StreamCorruptedException);
     seek(oisNoHandlers, afterSerWMisplacedFields);
 
-    const externalizable = oisNoHandlers.readObject() as BaseFallbackExternalizable;
+    const externalizable = oisNoHandlers.readObject() as internal.BaseFallbackExternalizable;
     expect(Object.getPrototypeOf(externalizable).constructor.$desc).toMatchObject({name: CLASS_PREFIX+"ExtChild"});
     expect(externalizable.$annotation.length).toBe(2);
     expect(new Uint8Array(externalizable.$annotation[0])).toEqual(new Uint8Array([

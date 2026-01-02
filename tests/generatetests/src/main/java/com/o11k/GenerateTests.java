@@ -2,92 +2,8 @@ package com.o11k;
 
 import java.io.*;
 import java.lang.reflect.*;
-import java.util.*;
 import java.util.stream.*;
 
-class Randomizer {
-    static final float CHANCE_NAN = 0.05f;
-    static final float CHANCE_INFINITY = 0.05f;
-    static final float CHANCE_SUBNORMAL = 0.05f;
-    static final float CHANCE_ZERO = 0.05f;
-
-    static byte nextByte(Random rnd) { byte[] bs = {0}; rnd.nextBytes(bs); return bs[0]; }
-    static char nextChar(Random rnd) { return (char)rnd.nextInt(1 << 16); }
-    static double nextDouble(Random rnd) {
-        long dBits = rnd.nextLong();
-        final long dExponentMask = 0b0__1111_1111_111__0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000L;
-        final long dFractionMask = 0b0__0000_0000_000__1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111L;
-        final float choice = rnd.nextFloat();
-        if (choice < (CHANCE_NAN)) {
-            dBits |= dExponentMask;
-        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY)) {
-            dBits |= dExponentMask;
-            dBits &= ~dFractionMask;
-        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL)) {
-            dBits &= ~dExponentMask;
-        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL + CHANCE_ZERO)) {
-            dBits &= ~dExponentMask;
-            dBits &= ~dFractionMask;
-        }
-        return Double.longBitsToDouble(dBits);
-    }
-    static float nextFloat(Random rnd) {
-        int fBits = rnd.nextInt();
-        final int fExponentMask = 0b0__1111_1111__0000_0000_0000_0000_0000_000;
-        final int fFractionMask = 0b0__0000_0000__1111_1111_1111_1111_1111_111;
-        final float choice = rnd.nextFloat();
-        if (choice < (CHANCE_NAN)) {
-            fBits |= fExponentMask;
-        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY)) {
-            fBits |= fExponentMask;
-            fBits &= ~fFractionMask;
-        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL)) {
-            fBits &= ~fExponentMask;
-        } else if (choice < (CHANCE_NAN + CHANCE_INFINITY + CHANCE_SUBNORMAL + CHANCE_ZERO)) {
-            fBits &= ~fExponentMask;
-            fBits &= ~fFractionMask;
-        }
-        return Float.intBitsToFloat(fBits);
-    }
-    static int nextInt(Random rnd) { return rnd.nextInt(); }
-    static long nextLong(Random rnd) { return rnd.nextLong(); }
-    static short nextShort(Random rnd) { return (short)rnd.nextInt(1 << 16); }
-    static boolean nextBoolean(Random rnd) { return rnd.nextBoolean(); }
-
-    static String nextString(Random rnd) { return UUID.randomUUID().toString(); }  // TODO
-
-    static <T> T nextObject(Random rnd, Class<T> clazz) throws Exception {
-        T obj = clazz.getDeclaredConstructor().newInstance();
-
-        for (Field f : clazz.getDeclaredFields()) {
-            f.setAccessible(true);
-
-            Class<?> type = f.getType();
-            if (type == byte.class || type == Byte.class) {
-                f.set(obj, nextByte(rnd));
-            } else if (type == char.class || type == Character.class) {
-                f.set(obj, nextChar(rnd));
-            } else if (type == double.class || type == Double.class) {
-                f.set(obj, nextDouble(rnd));
-            } else if (type == float.class || type == Float.class) {
-                f.set(obj, nextFloat(rnd));
-            } else if (type == int.class || type == Integer.class) {
-                f.set(obj, nextInt(rnd));
-            } else if (type == long.class || type == Long.class) {
-                f.set(obj, nextLong(rnd));
-            } else if (type == short.class || type == Short.class) {
-                f.set(obj, nextShort(rnd));
-            } else if (type == boolean.class || type == Boolean.class) {
-                f.set(obj, nextBoolean(rnd));
-            } else if (!type.isPrimitive()) {
-                // recursively fill nested object
-                f.set(obj, nextObject(rnd, type));
-            }
-        }
-
-        return obj;
-    }
-}
 
 class ToJS {
     static boolean isPrintable(char c) {
@@ -178,57 +94,6 @@ public class GenerateTests {
 
     static final String PATH_DIR = "tests/tmp";
 
-
-    static void writePrimitive(Random rnd, FileWriter outExpected, ObjectOutputStream oos) throws Exception {
-        final char[] typecodes = {'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z'};
-        char typecode = typecodes[rnd.nextInt(typecodes.length)];
-
-        switch (typecode) {
-            case 'B':
-                final byte b = Randomizer.nextByte(rnd);
-                oos.writeByte(b);
-                outExpected.write(typecode + ToJS.toJs(b) + '\n');
-                break;
-            case 'C':
-                final char c = Randomizer.nextChar(rnd);
-                oos.writeChar(c);
-                outExpected.write(typecode + ToJS.toJs(c) + '\n');
-                break;
-            case 'D':
-                final double d = Randomizer.nextDouble(rnd);
-                oos.writeDouble(d);
-                outExpected.write(typecode + ToJS.toJs(d) + '\n');
-                break;
-            case 'F':
-                final float f = Randomizer.nextFloat(rnd);
-                oos.writeFloat(f);
-                outExpected.write(typecode + ToJS.toJs(f) + '\n');
-                break;
-            case 'I':
-                final int i_ = Randomizer.nextInt(rnd);
-                oos.writeInt(i_);
-                outExpected.write(typecode + ToJS.toJs(i_) + '\n');
-                break;
-            case 'J':
-                final long l = Randomizer.nextLong(rnd);
-                oos.writeLong(l);
-                outExpected.write(typecode + ToJS.toJs(l) + '\n');
-                break;
-            case 'S':
-                final short s = Randomizer.nextShort(rnd);
-                oos.writeShort(s);
-                outExpected.write(typecode + ToJS.toJs(s) + '\n');
-                break;
-            case 'Z':
-                final boolean z = Randomizer.nextBoolean(rnd);
-                oos.writeBoolean(z);
-                outExpected.write(typecode + ToJS.toJs(z) + '\n');
-                break;
-            default:
-                throw new Exception("Unexpected typecode: " + typecode);
-        }
-    }
-
     static class A implements Serializable {
         byte b;
         char c;
@@ -238,21 +103,6 @@ public class GenerateTests {
         long j;
         short s;
         boolean z;
-    }
-
-    static void writeObject(Random rnd, FileWriter outExpected, ObjectOutputStream oos) throws Exception {
-        A obj = new A();
-        obj.b = Randomizer.nextByte(rnd);
-        obj.c = Randomizer.nextChar(rnd);
-        obj.d = Randomizer.nextDouble(rnd);
-        obj.f = Randomizer.nextFloat(rnd);
-        obj.i = Randomizer.nextInt(rnd);
-        obj.j = Randomizer.nextLong(rnd);
-        obj.s = Randomizer.nextShort(rnd);
-        obj.z = Randomizer.nextBoolean(rnd);
-
-        outExpected.write("L" + ToJS.toJs(obj) + "\n");
-        oos.writeObject(obj);
     }
 
     static interface GenMethod { void test(ObjectOutputStream oos) throws Exception; }

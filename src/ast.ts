@@ -1,4 +1,4 @@
-import type ObjecctInputStream from '.';
+import type ObjectInputStream from '.';
 
 
 // ========== CONTRACT ==========
@@ -19,12 +19,18 @@ export interface Ast {
 }
 export default Ast
 
+export type Node =
+    RootNode | MagicNode | VersionNode | ContentsNode
+  | BlockDataSequenceNode | BlockDataNode
+  | PrimitiveNode | UtfNode | LongUtfNode | UtfBodyNode | BytesNode | SkippedNode
+  | ObjectNode | TCNode | ClassDescInfoNode | ProxyClassDescInfoNode
+
 export interface RootNode extends BaseNode<[MagicNode, VersionNode, ContentsNode]> {
     type: "root"
 }
 
-export interface MagicNode extends BaseNode<null>   {type: "magic",   value: typeof ObjecctInputStream.STREAM_MAGIC}
-export interface VersionNode extends BaseNode<null> {type: "version", value: typeof ObjecctInputStream.STREAM_VERSION}
+export interface MagicNode extends BaseNode<null>   {type: "magic",   value: typeof ObjectInputStream.STREAM_MAGIC}
+export interface VersionNode extends BaseNode<null> {type: "version", value: typeof ObjectInputStream.STREAM_VERSION}
 
 export interface ContentsNode extends BaseNode<(BlockDataSequenceNode | ObjectNode)[]> {
     type: "contents"
@@ -228,25 +234,27 @@ export interface ObjectDescNode extends BaseNode<[UnsignedByteNode, UtfNode, Obj
 
 // ========== Misc. ==========
 
-interface TCNode extends BaseNode<null> {
+interface BaseTCNode extends BaseNode<null> {
     type: "tc"
     value: number
 }
 
-export type TC_NULL_Node           = TCNode & {value: typeof ObjecctInputStream.TC_NULL}
-export type TC_REFERENCE_Node      = TCNode & {value: typeof ObjecctInputStream.TC_REFERENCE}
-export type TC_CLASSDESC_Node      = TCNode & {value: typeof ObjecctInputStream.TC_CLASSDESC}
-export type TC_OBJECT_Node         = TCNode & {value: typeof ObjecctInputStream.TC_OBJECT}
-export type TC_STRING_Node         = TCNode & {value: typeof ObjecctInputStream.TC_STRING}
-export type TC_ARRAY_Node          = TCNode & {value: typeof ObjecctInputStream.TC_ARRAY}
-export type TC_CLASS_Node          = TCNode & {value: typeof ObjecctInputStream.TC_CLASS}
-export type TC_BLOCKDATA_Node      = TCNode & {value: typeof ObjecctInputStream.TC_BLOCKDATA}
-export type TC_ENDBLOCKDATA_Node   = TCNode & {value: typeof ObjecctInputStream.TC_ENDBLOCKDATA}
-export type TC_RESET_Node          = TCNode & {value: typeof ObjecctInputStream.TC_RESET}
-export type TC_BLOCKDATALONG_Node  = TCNode & {value: typeof ObjecctInputStream.TC_BLOCKDATALONG}
-export type TC_EXCEPTION_Node      = TCNode & {value: typeof ObjecctInputStream.TC_EXCEPTION}
-export type TC_LONGSTRING_Node     = TCNode & {value: typeof ObjecctInputStream.TC_LONGSTRING}
-export type TC_PROXYCLASSDESC_Node = TCNode & {value: typeof ObjecctInputStream.TC_PROXYCLASSDESC}
-export type TC_ENUM_Node           = TCNode & {value: typeof ObjecctInputStream.TC_ENUM}
+type TCNode = TC_NULL_Node | TC_REFERENCE_Node | TC_CLASSDESC_Node | TC_OBJECT_Node | TC_STRING_Node | TC_ARRAY_Node | TC_CLASS_Node | TC_BLOCKDATA_Node | TC_ENDBLOCKDATA_Node | TC_RESET_Node | TC_BLOCKDATALONG_Node | TC_EXCEPTION_Node | TC_LONGSTRING_Node | TC_PROXYCLASSDESC_Node | TC_ENUM_Node
+
+export type TC_NULL_Node           = BaseTCNode & {value: typeof ObjectInputStream.TC_NULL}
+export type TC_REFERENCE_Node      = BaseTCNode & {value: typeof ObjectInputStream.TC_REFERENCE}
+export type TC_CLASSDESC_Node      = BaseTCNode & {value: typeof ObjectInputStream.TC_CLASSDESC}
+export type TC_OBJECT_Node         = BaseTCNode & {value: typeof ObjectInputStream.TC_OBJECT}
+export type TC_STRING_Node         = BaseTCNode & {value: typeof ObjectInputStream.TC_STRING}
+export type TC_ARRAY_Node          = BaseTCNode & {value: typeof ObjectInputStream.TC_ARRAY}
+export type TC_CLASS_Node          = BaseTCNode & {value: typeof ObjectInputStream.TC_CLASS}
+export type TC_BLOCKDATA_Node      = BaseTCNode & {value: typeof ObjectInputStream.TC_BLOCKDATA}
+export type TC_ENDBLOCKDATA_Node   = BaseTCNode & {value: typeof ObjectInputStream.TC_ENDBLOCKDATA}
+export type TC_RESET_Node          = BaseTCNode & {value: typeof ObjectInputStream.TC_RESET}
+export type TC_BLOCKDATALONG_Node  = BaseTCNode & {value: typeof ObjectInputStream.TC_BLOCKDATALONG}
+export type TC_EXCEPTION_Node      = BaseTCNode & {value: typeof ObjectInputStream.TC_EXCEPTION}
+export type TC_LONGSTRING_Node     = BaseTCNode & {value: typeof ObjectInputStream.TC_LONGSTRING}
+export type TC_PROXYCLASSDESC_Node = BaseTCNode & {value: typeof ObjectInputStream.TC_PROXYCLASSDESC}
+export type TC_ENUM_Node           = BaseTCNode & {value: typeof ObjectInputStream.TC_ENUM}
 
 export type Handle = {epoch: number, handle: number}
