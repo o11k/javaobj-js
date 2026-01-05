@@ -644,7 +644,7 @@ export class ObjectInputStream {
             let readMethod: NonNullable<Serializable["readObject"]> | null = null;
             if (obj instanceof curClass) {
                 if (curClass.serialVersionUID !== undefined && curClass.serialVersionUID !== curDesc.suid)
-                    throw new exc.ClassNotFoundException(curDesc.name + ": stream suid " + curDesc.suid + " doesn't match available suid " + curClass.serialVersionUID);
+                    throw new exc.InvalidClassException(curDesc.name, "stream suid " + curDesc.suid + " doesn't match available suid " + curClass.serialVersionUID);
 
                 if (typeof curClass.prototype.readObject === "function") {
                     readMethod = curClass.prototype.readObject;
@@ -1138,11 +1138,11 @@ export abstract class BaseFallbackClass {
     static $desc: ObjectStreamClass<false>
 }
 export abstract class BaseFallbackSerializable extends BaseFallbackClass implements Serializable {
-    $annotation: any[] = []
+    $annotation: any[][] = []
 
     readObject(ois: ObjectInputStream): void {
         ois.defaultReadObject();
-        this.$annotation = ois.readEverything();
+        this.$annotation.push(ois.readEverything());
     }
 }
 export abstract class BaseFallbackExternalizable extends BaseFallbackClass implements Externalizable {
@@ -1153,12 +1153,13 @@ export abstract class BaseFallbackExternalizable extends BaseFallbackClass imple
     }
 }
 export abstract class BaseFallbackEnum extends BaseFallbackClass {
+    [key: string]: string
+
     constructor() {
         super();
-        return new Proxy(this, {get: (target, prop) => {
-            if (typeof prop === "string" && prop.startsWith("$"))
-                // @ts-expect-error
-                return target[prop];
+        return new Proxy(this, {get: (target, prop, receiver) => {
+            if (typeof prop !== "string" || prop.startsWith("$"))
+                return Reflect.get(target, prop, receiver);;
             return prop;
         }})
     }

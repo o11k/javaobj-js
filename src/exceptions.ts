@@ -70,10 +70,10 @@ export class InvalidObjectException extends ObjectStreamException {
     name = "InvalidObjectException";
 }
 export class WriteAbortedException extends ObjectStreamException {
+    name = "WriteAbortedException";
     detail: any;
     constructor(message: string, detail: any) {
-        super(message);
-        this.name = "WriteAbortedException";
+        super(message + ": " + detail);
         this.detail = detail;
     }
 }

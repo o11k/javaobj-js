@@ -37,8 +37,6 @@ const PRIMITIVES_FILENAME = "primitives"
 test("sanity: primitives", () => {
     const ois = new ObjectInputStream(readSerializedFile(PRIMITIVES_FILENAME));
 
-    console.log([...readSerializedFile(PRIMITIVES_FILENAME)])
-
     expect(ois.readByte()   ).toBe(69)
     expect(ois.readChar()   ).toBe('✔')
     expect(ois.readDouble() ).toBe(420e69)
@@ -526,7 +524,3 @@ test("eof in middle of primitive / object", () => {
     ]));
     expect(() => ois2.readObject()).toThrow(EOFException);
 })
-
-// TODO enums
-// TODO classes and classDescs
-// TODO sudden death: a million random objects and primitives that reference each other
