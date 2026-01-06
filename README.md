@@ -98,9 +98,9 @@ class CustomSerializable implements Serializable {
 ois.registerSerializable("com.mypackage.CustomSerializable", CustomSerializable);
 ```
 
-> Note: if you recreate and register an entire inheritence chain of serializable classes, their `readObject` methods will be called in order, same as in Java. For every class in the chain that doesn't have a JavaScript handler / where the handler class doesn't have a `readObject` method, `ois.defaultReadObject` is called, again, same as in Java.
+> Warning: Java serializable classes that don't write their fields before writing anything else to stream MUST have a custom handler class that replicates that behavior. Not doing that could lead to undefined behavior.
 
-> Warning: Java serializable classes that write their fields before writing anything else to stream MUST have a custom handler class that replicates this behavior. Not doing that would lead to undefined behavior.
+> Note: if you recreate and register an entire inheritence chain of serializable classes, their `readObject` methods will be called in order, same as in Java. For every class in the chain that doesn't have a JavaScript handler / where the handler class doesn't have a `readObject` method, `ois.defaultReadObject` is called, again, same as in Java.
 
 ##### Externalizable Classes
 
@@ -122,7 +122,7 @@ class CustomExternalizable implements Externalizable {
 ois.registerExternalizable("com.mypackage.CustomExternalizable", CustomExternalizable);
 ```
 
-> Warning: Java externalizable objects written using `PROTOCOL_VERSION_1` MUST have a custom handler class that reads all written data to stream. Not doing that would lead to undefined behavior.
+> Warning: Java externalizable objects written using `PROTOCOL_VERSION_1` MUST have a custom handler class that reads all written data to stream. Not doing that could lead to undefined behavior.
 
 ##### Enum Objects
 
