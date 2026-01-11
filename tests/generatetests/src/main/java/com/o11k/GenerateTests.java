@@ -376,9 +376,9 @@ public class GenerateTests {
         oos.writeObject(new LinkedHashSet<>(Arrays.asList("a", "b", "c")));
         oos.writeObject(new TreeSet<>      (Arrays.asList(1, 2, 3)));
 
-        Map<Object, Object> hm = new HashMap<>();       hm.put(  1,   2); hm.put("a", "b");
-        Map<Object, Object> lm = new LinkedHashMap<>(); lm.put(  2, "a"); lm.put(  1, "a");
-        Map<Object, Object> tm = new TreeMap<>();       tm.put("a",   2); tm.put("b",   2);
+        Map<?,?> hm = new HashMap      <Object, Object>(){{put(  1,   2); put("a", "b");}};
+        Map<?,?> lm = new LinkedHashMap<Object, Object>(){{put(  2, "a"); put(  1, "a");}};
+        Map<?,?> tm = new TreeMap      <Object, Object>(){{put("a",   2); put("b",   2);}};
         oos.writeObject(hm);
         oos.writeObject(lm);
         oos.writeObject(tm);

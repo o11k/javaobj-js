@@ -629,9 +629,10 @@ export class ObjectInputStream {
         if (!desc.hasBlockExternalData && desc.cl !== registered)
             throw new exc.ClassNotFoundException("Cannot deserialize instance of Externalizable class " + desc.name + " written using PROTOCOL_VERSION_1, without a matching JS-side class");
 
-        const objSuid = Object.getPrototypeOf(obj).constructor.serialVersionUID;
-        if (objSuid !== undefined && objSuid !== desc.suid)
-            throw new exc.InvalidClassException(desc.name, "stream suid " + desc.suid + " doesn't match available suid " + objSuid);
+        const objClass = Object.getPrototypeOf(obj).constructor;
+        const ownSuid = getOwnProperty(objClass, "serialVersionUID");
+        if (ownSuid !== undefined && ownSuid !== desc.suid)
+            throw new exc.InvalidClassException(desc.name, "stream suid " + desc.suid + " doesn't match available suid " + ownSuid);
 
         const oldContext = this.curContext;
         this.curContext = null;
@@ -657,11 +658,12 @@ export class ObjectInputStream {
             let readMethod: ReadMethodT;
 
             if (obj instanceof curClass) {
-                if (curClass.serialVersionUID !== undefined && curClass.serialVersionUID !== curDesc.suid)
-                    throw new exc.InvalidClassException(curDesc.name, "stream suid " + curDesc.suid + " doesn't match available suid " + curClass.serialVersionUID);
+                const ownSuid = getOwnProperty(curClass, "serialVersionUID");
+                if (ownSuid !== undefined && ownSuid !== curDesc.suid)
+                    throw new exc.InvalidClassException(curDesc.name, "stream suid " + curDesc.suid + " doesn't match available suid " + ownSuid);
 
-                const hasOwnWr = Object.prototype.hasOwnProperty.apply(curClass.prototype, ["readObject"]);
-                if (hasOwnWr && typeof curClass.prototype.readObject === "function") {
+                const ownReadMethod = getOwnProperty(curClass.prototype, "readObject");
+                if (typeof ownReadMethod === "function") {
                     readMethod = curClass.prototype.readObject;
                 } else {
                     readMethod = defaultReadMethod;
@@ -1213,4 +1215,8 @@ type CallbackContext = {
 
 function defaultReadMethod(ois: ObjectInputStream) {
     ois.defaultReadObject();
+}
+
+function getOwnProperty(obj: any, prop: string | symbol) {
+    return Object.prototype.hasOwnProperty.apply(obj, [prop]) ? obj[prop] : undefined
 }
