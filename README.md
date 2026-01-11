@@ -293,7 +293,9 @@ const ois = new ObjectInputStream(data);
 const ast = ois.getAST();
 ```
 
-> WARNING: The AST structure and API are unstable, and may change at any type.
+> WARNING: The AST structure and API are unstable, and may change at any time.
+
+> Note: an AST cna be reliably produced for a stream that has been parsed fully and without errors.
 
 ## Limitations
 
