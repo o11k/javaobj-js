@@ -2,6 +2,7 @@ package com.o11k;
 
 import java.io.*;
 import java.lang.reflect.*;
+import java.util.*;
 import java.util.stream.*;
 
 
@@ -448,6 +449,23 @@ public class GenerateTests {
         oos.writeObject(MyEnum.MY_VALUE_5);
     }
 
+    static void genContainers(ObjectOutputStream oos) throws Exception {
+        oos.writeObject(new ArrayList <>(Arrays.asList(1.2,"asd",new EmptyClass())));
+        oos.writeObject(new LinkedList<>(Arrays.asList("a", "b", "c")));
+        oos.writeObject(new ArrayDeque<>(Arrays.asList(1, 2, 3)));
+    
+        oos.writeObject(new HashSet<>      (Arrays.asList(1.2,"asd",new EmptyClass())));
+        oos.writeObject(new LinkedHashSet<>(Arrays.asList("a", "b", "c")));
+        oos.writeObject(new TreeSet<>      (Arrays.asList(1, 2, 3)));
+
+        Map<Object, Object> hm = new HashMap<>();       hm.put(  1,   2); hm.put("a", "b");
+        Map<Object, Object> lm = new LinkedHashMap<>(); lm.put(  2, "a"); lm.put(  1, "a");
+        Map<Object, Object> tm = new TreeMap<>();       tm.put("a",   2); tm.put("b",   2);
+        oos.writeObject(hm);
+        oos.writeObject(lm);
+        oos.writeObject(tm);
+    }
+
     public static void main(String[] args) throws Exception {
         new File(PATH_DIR).mkdirs();
 
@@ -468,5 +486,6 @@ public class GenerateTests {
         withOos("classes", GenerateTests::genClasses);
         withOos("classdescs", GenerateTests::genClassDescs);
         withOos("enums", GenerateTests::genEnums);
+        withOos("containers", GenerateTests::genContainers);
     }
 }

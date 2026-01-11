@@ -590,7 +590,7 @@ export class ObjectInputStream {
         const constantName = this.readString();
 
         if (!(constantName in desc.cl))
-            throw new exc.InvalidClassException(desc.name, "enum constant name doesn't exist: " + constantName);
+            throw new exc.InvalidObjectException("enum constant name doesn't exist: " + desc.name+"."+constantName);
         // @ts-expect-error
         const result = desc.cl[constantName];
 
@@ -660,7 +660,8 @@ export class ObjectInputStream {
                 if (curClass.serialVersionUID !== undefined && curClass.serialVersionUID !== curDesc.suid)
                     throw new exc.InvalidClassException(curDesc.name, "stream suid " + curDesc.suid + " doesn't match available suid " + curClass.serialVersionUID);
 
-                if (typeof curClass.prototype.readObject === "function") {
+                const hasOwnWr = Object.prototype.hasOwnProperty.apply(curClass.prototype, ["readObject"]);
+                if (hasOwnWr && typeof curClass.prototype.readObject === "function") {
                     readMethod = curClass.prototype.readObject;
                 } else {
                     readMethod = defaultReadMethod;

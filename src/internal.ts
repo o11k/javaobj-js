@@ -8,4 +8,5 @@ export {
     BaseFallbackExternalizable,
     BaseFallbackEnum,
     ReadMethodT,
+    EnumProxyHandler,
 } from './object-input-stream';

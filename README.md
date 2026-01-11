@@ -309,5 +309,5 @@ const ast = ois.getAST();
     - [X] Class descriptors
     - [ ] Proxy classes
     - [X] Enums
-    - [ ] java.util handlers
+    - [X] java.util handlers
     - [ ] Sudden death: a brazillian randomly generated primitives and objects with a complex reference graph and readObject/readExternal

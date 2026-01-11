@@ -8,7 +8,7 @@ import {
     ObjectInputStreamAST,
     ast
 } from '../src/index';
-import { ClassNotFoundException, EOFException, InvalidClassException, NotActiveException, NullPointerException, OptionalDataException, StreamCorruptedException, UTFDataFormatException } from '../src/exceptions';
+import { ClassNotFoundException, EOFException, InvalidClassException, InvalidObjectException, NotActiveException, NullPointerException, OptionalDataException, StreamCorruptedException, UTFDataFormatException } from '../src/exceptions';
 import { BaseFallbackEnum, BaseFallbackExternalizable, BaseFallbackSerializable, ObjectStreamClass } from '../src/object-input-stream';
 
 // For constants
@@ -453,7 +453,9 @@ test("read class descriptors", () => {
 const ENUMS_FILENAME = "enums";
 test("enums", () => {
     const oisNoHandlers = new ObjectInputStream(readSerializedFile(ENUMS_FILENAME));
-    expect(oisNoHandlers.readObject().prototype).toBeInstanceOf(BaseFallbackEnum);
+    const generatedEnum = oisNoHandlers.readObject();
+    expect(generatedEnum.$desc.name).toBe(CLASS_PREFIX+"MyEnum");
+    expect(generatedEnum.prototype).toBeInstanceOf(BaseFallbackEnum);
     expect(oisNoHandlers.readObject()).toMatchObject({
         name: CLASS_PREFIX+"MyEnum",
         isEnum: true, serializable: true, externalizable: false, hasWriteObjectData: false, hasBlockExternalData: false,
@@ -480,9 +482,41 @@ test("enums", () => {
 
     expect(ois.readObject()).toBe("asd");
     expect(ois.readObject()).toBe(123);
-    expect(() => ois.readObject()).toThrow(InvalidClassException);
+    expect(() => ois.readObject()).toThrow(InvalidObjectException);
     expect(ois.readObject()).toBe(undefined);
     expect(ois.readObject()).toBe(MyEnum);
+})
+
+const CONTAINERS_FILENAME = "containers";
+test("container class handlers", () => {
+    const preOis = new ObjectInputStream(readSerializedFile(CONTAINERS_FILENAME));
+
+    expect(preOis.readObject()).toBeInstanceOf(Array);
+    expect(preOis.readObject()).toBeInstanceOf(Array);
+    expect(preOis.readObject()).toBeInstanceOf(Array);
+
+    expect(preOis.readObject()).toBeInstanceOf(Set);
+    expect(preOis.readObject()).toBeInstanceOf(Set);
+    expect(preOis.readObject()).toBeInstanceOf(Set);
+
+    expect(preOis.readObject()).toBeInstanceOf(Map);
+    expect(preOis.readObject()).toBeInstanceOf(Map);
+    expect(preOis.readObject()).toBeInstanceOf(Map);
+
+    const ois = new ObjectInputStream(readSerializedFile(CONTAINERS_FILENAME));
+    ois.registerSerializable(CLASS_PREFIX+"EmptyClass", EmptyClass);
+
+    expect([...ois.readObject()]).toEqual([1.2, "asd", new EmptyClass()]);
+    expect([...ois.readObject()]).toEqual(["a", "b", "c"]);
+    expect([...ois.readObject()]).toEqual([1, 2, 3]);
+
+    expect(new Set(ois.readObject())).toEqual(new Set([1.2, "asd", new EmptyClass()]));
+    expect(new Set(ois.readObject())).toEqual(new Set(["a", "b", "c"]));
+    expect(new Set(ois.readObject())).toEqual(new Set([1, 2, 3]));
+
+    expect(new Map(ois.readObject())).toEqual(new Map<any, any>([[  1,   2], ["a", "b"]]));
+    expect(new Map(ois.readObject())).toEqual(new Map<any, any>([[  2, "a"], [  1, "a"]]));
+    expect(new Map(ois.readObject())).toEqual(new Map<any, any>([["a",   2], ["b",   2]]));
 })
 
 // User errors
