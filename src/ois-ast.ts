@@ -139,7 +139,13 @@ export class ObjectInputStreamAST extends ObjectInputStream {
     @traceMethod("object/null")
     protected readNull() { return super.readNull(); }
     @traceMethod("object/handle")
-    protected readHandle() { return super.readHandle(); }
+    protected readHandle() {
+        assert(this.cstStack.length > 0);
+        const currNode = this.cstStack[this.cstStack.length-1];
+        assert(currNode.type === "object/handle");
+        currNode.value = this.epoch;
+        return super.readHandle();
+    }
     @traceMethod("object/class")
     protected readClass() { return super.readClass(); }
     @traceMethod("object/class-desc")
@@ -639,8 +645,8 @@ function cstToAstNode(node: CSTNode, children: ast.Node[]): ast.Node {
             const ref = children[1];
             assert(tc.type === "tc" && tc.value === ObjectInputStream.TC_REFERENCE);
             assert(ref.type === "primitive" && ref.dataType === "int");
-            // TODO epoch
-            return {type: "object", objectType: "prev-object", span: node.span, value: {epoch: -1, handle: ref.value}, children: [tc, ref]}
+            assert(typeof node.value === "number")
+            return {type: "object", objectType: "prev-object", span: node.span, value: {epoch: node.value, handle: ref.value}, children: [tc, ref]}
         }
         case "object/class": {
             assert(children.length === 1);

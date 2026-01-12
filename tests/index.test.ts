@@ -964,6 +964,7 @@ function testAst(filename: string, structure: any, run=(ois: ObjectInputStreamAS
 
     expect(theAst.root).toMatchObject(structure)
     expectAstSpansValid(theAst);
+    expectAstHandlesValid(theAst);
 
     // function pp(node: ast.Node, indent=0) {
     //     let res = " ".repeat(indent) + node.type;
@@ -983,13 +984,8 @@ function expectAstSpansValid(ast: ast.Ast) {
         expect(node.span.start).toBeLessThanOrEqual(node.span.end);
         if (node.children === null) return;
 
-        if (node.children.length === 0 &&
-            (   node.type === "contents"
-            || (node.type === "external-data" && node.protocolVersion === 1)
-            ||  node.type === "values"
-        ))
+        if (node.children.length === 0)
             return;
-        expect(node.children.length).toBeGreaterThan(0);
 
         expect(node.span.start).toBe(node.children[0].span.start);
         expect(node.span.end).toBe(node.children[node.children.length-1].span.end);
@@ -1012,6 +1008,55 @@ function expectAstSpansValid(ast: ast.Ast) {
     }
     expect(ast.root.span.start).toBe(0);
     expect(ast.root.span.end).toBe(ast.data.length);
+    doIt(ast.root);
+}
+
+function expectAstHandlesValid(ast: ast.Ast) {
+    let currEpoch = 0;
+    let currHandle = ObjectInputStream.baseWireHandle;
+    const handles: {epoch: number, handle: number}[] = [];
+
+    function doIt(node: ast.Node) {
+        if (node.type !== "object") {
+            if (node.children !== null) {
+                node.children.forEach(child => doIt(child));
+            }
+            return;
+        }
+
+        const doItNext: ast.Node[] = [];
+        if (node.type === "object" && (
+               node.objectType === "new-class"
+            || node.objectType === "new-array"
+            || node.objectType === "new-object"
+            || node.objectType === "new-enum"
+        )) {
+            const desc: ast.ClassDescNode = node.children[1];
+            doIt(desc);
+            doItNext.push(...node.children.slice(2));
+        } else if (node.children !== null) {
+            doItNext.push(...node.children);
+        }
+
+        if (node.objectType === "reset") {
+            currEpoch++;
+            currHandle = ObjectInputStream.baseWireHandle;
+        } else if (node.objectType === "exception") {
+            expect(++currEpoch).toBe(node.exceptionEpoch);
+            node.children.forEach(child => doIt(child));
+            expect(++currEpoch).toBe(node.exceptionEpoch);
+        } else if (node.objectType === "prev-object") {
+            expect(handles).toContainEqual(node.value);
+        } else if (node.objectType === "null") {
+        } else {
+            expect(node.handle).toEqual({epoch: currEpoch, handle: currHandle});
+            currHandle++;
+            handles.push(node.handle);
+        }
+
+        doItNext.forEach(it => doIt(it));
+    }
+
     doIt(ast.root);
 }
 
