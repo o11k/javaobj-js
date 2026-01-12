@@ -1,6 +1,6 @@
 {
   "name": "object-input-stream",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ObjectInputStream for JavaScript. Read Java serialized objects in Node and the browser.",
   "main": "dist/index.js",
   "types": "dist/index.d.js",
