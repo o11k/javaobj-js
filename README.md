@@ -223,7 +223,7 @@ Dynamically generated general class handlers are of the following structure:
 ```ts
 class ExampleProxy {
     // A list of the proxy interface names associated with the class
-    static readonly proxyInterfaces: string[] = []
+    static readonly $proxyInterfaces: string[] = []
     // The proxy handler class / lambda from Java
     h?: InvocationHandler
     // Creates a proxy object that calls this.h on property access
@@ -234,6 +234,8 @@ interface InvocationHandler {
     invoke: (proxy: BaseProxy, method: string, args: any[]) => any
 }
 ```
+
+To use a proxy object in JavaScript, you will need to register a class to correspond to its handler's class.
 
 #### Built-in Class Handlers
 
@@ -301,17 +303,3 @@ const ast = ois.getAST();
 
 - Requires a runtime that supports `bigint` (all modern runtimes)
 - Doesn't support strings over 9 petabytes in size (`Number.MAX_SAFE_INTEGER` bytes)
-
-## TODO
-
-- [X] ObjectInputStreamAST class: emit AST after parsing
-- [X] Complete existing tests
-- [ ] Expand tests
-    - [X] Classes
-    - [X] Class descriptors
-    - [X] Proxy classes
-    - [X] Enums
-    - [X] java.util handlers
-    - [X] exceptions in stream
-    - [ ] Sudden death: a brazillian randomly generated primitives and objects with a complex reference graph and readObject/readExternal
-- [ ] AST: real handles
