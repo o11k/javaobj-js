@@ -959,9 +959,11 @@ function testAst(filename: string, structure: any, run=(ois: ObjectInputStreamAS
     const ois = new ObjectInputStreamAST(readSerializedFile(filename));
     run(ois);
     ois.readEverything();
-    const astRoot = ois.getAST().root;
+    const theAst = ois.getAST();
     // console.log(astRoot.children[2].children.length)
-    expect(astRoot).toMatchObject(structure)
+
+    expect(theAst.root).toMatchObject(structure)
+    expectAstSpansValid(theAst);
 
     // function pp(node: ast.Node, indent=0) {
     //     let res = " ".repeat(indent) + node.type;
@@ -974,6 +976,43 @@ function testAst(filename: string, structure: any, run=(ois: ObjectInputStreamAS
     // }
 
     // console.log(pp(astRoot))
+}
+
+function expectAstSpansValid(ast: ast.Ast) {
+    function doIt(node: ast.Node) {
+        expect(node.span.start).toBeLessThanOrEqual(node.span.end);
+        if (node.children === null) return;
+
+        if (node.children.length === 0 &&
+            (   node.type === "contents"
+            || (node.type === "external-data" && node.protocolVersion === 1)
+            ||  node.type === "values"
+        ))
+            return;
+        expect(node.children.length).toBeGreaterThan(0);
+
+        expect(node.span.start).toBe(node.children[0].span.start);
+        expect(node.span.end).toBe(node.children[node.children.length-1].span.end);
+        for (let i=1; i<node.children.length; i++) {
+            expect(node.children[i-1].span.end).toBe(node.children[i].span.start);
+        }
+        node.children.forEach(child => doIt(child));
+
+        if (node.type === "blockdata-sequence") {
+            if (node.values.length === 0) return;
+            doIt({
+                // Using external data because it's allowed to have these data types
+                type: "external-data",
+                protocolVersion: 1,
+                // May begin and end with empty blocks
+                span: {start: node.values[0].span.start, end: node.values[node.values.length-1].span.end},
+                children: node.values
+            });
+        }
+    }
+    expect(ast.root.span.start).toBe(0);
+    expect(ast.root.span.end).toBe(ast.data.length);
+    doIt(ast.root);
 }
 
 test("ast: primitives", () => {

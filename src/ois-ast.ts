@@ -845,7 +845,7 @@ function cstToAstNode(node: CSTNode, children: ast.Node[]): ast.Node {
                 children: [...beforeValues],
             }
             const beforeAnnotation = values !== null ? [contents, values] as const : [] as const;
-            return {type: "class-data", writeMethod: true, span: node.span, children: [...beforeAnnotation, annotation]}
+            return {type: "class-data", writeMethod: true, span: node.span, children: [...beforeAnnotation, newAnnotation]}
         }
         case "class-data-no-wr": {
             const hasValues = children.length > 0 && children[children.length-1].type === "values";
