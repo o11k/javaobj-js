@@ -1141,15 +1141,23 @@ export interface InvocationHandler {
     invoke(proxy: BaseProxy, method: string, args: any[]): any
 }
 
+export function getProxyHandler(proxy: BaseProxy): InvocationHandler | undefined {
+    const handler = proxy.h as any;
+    if (typeof handler !== "undefined" && typeof handler.invoke !== "function")
+        throw new Error("Bad invocation handler")
+    return handler;
+}
+
 export abstract class BaseProxy {
     static readonly $proxyInterfaces: string[] = [];
 
     [method: string]: (...args: any[]) => any;
-    // @ts-expect-error
-    h?: InvocationHandler;
+
+    // Actual implementation. Removed to appease TypeScript
+    // h?: InvocationHandler;
 
     constructor(h?: InvocationHandler) {
-        this.h = h;
+        this.h = h as any;
         const self = this;
 
         return new Proxy(this, {
@@ -1159,13 +1167,15 @@ export abstract class BaseProxy {
                     return value;
 
                 return (...args: any[]) => {
-                    if (typeof self.h?.invoke !== "function")
+                    const handler = getProxyHandler(self);
+                    if (typeof handler?.invoke !== "function")
                         throw new TypeError("invocation handler doesn't have invoke method");
-                    return self.h.invoke(target, prop, args);
+                    return handler.invoke(target, prop, args);
                 }
             },
             has(target, prop) {
-                return (typeof self.h?.invoke === "function" && typeof prop === "string")
+                const handler = getProxyHandler(self);
+                return (typeof handler?.invoke === "function" && typeof prop === "string")
                     || Reflect.has(target, prop);
             },
         })
@@ -1214,8 +1224,7 @@ export abstract class BaseFallbackExternalizable extends BaseFallbackClass imple
     }
 }
 
-export abstract class BaseFallbackEnum extends BaseFallbackClass {
-    // @ts-expect-error
+export abstract class BaseFallbackEnum {
     static [key: string]: string
 }
 export const EnumProxyHandler: ProxyHandler<BaseFallbackEnum> = {

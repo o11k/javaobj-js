@@ -197,8 +197,6 @@ Dynamically generated enum object handlers are of the following structure:
 
 ```ts
 class ExampleEnum {
-    // Class descriptor
-    static readonly $desc: ObjectStreamClass
     // Creates a proxy object around itself, where for any string s, this[s] is s itself.
     // This means that enum constants are read as just the string constant names themselves.
     constructor()
