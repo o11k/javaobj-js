@@ -649,9 +649,9 @@ function cstToAstNode(node: CSTNode, children: ast.Node[]): ast.Node {
             return {type: "object", objectType: "prev-object", span: node.span, value: {epoch: node.value, handle: ref.value}, children: [tc, ref]}
         }
         case "object/class": {
-            assert(children.length === 1);
+            assert(children.length === 2);
             const tc = children[0];
-            const desc = children[0];
+            const desc = children[1];
             assert(tc.type === "tc" && tc.value === ObjectInputStream.TC_CLASS);
             assertDescNode(desc);
             assert(node.handle !== undefined);
