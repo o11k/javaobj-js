@@ -257,6 +257,7 @@ function cstToAst(cst: CSTNode, data: Uint8Array): ast.Ast {
             && node.type !== "serial-data"
             && node.type !== "external-data"
             && node.type !== "class-data-no-wr"
+            && node.type !== "utf-body"
         )
 }, {recursive: true});
 
@@ -754,7 +755,7 @@ function cstToAstNode(node: CSTNode, children: ast.Node[]): ast.Node {
             }]}
         }
         case "object/enum": {
-            assert(children.length === 2);
+            assert(children.length === 3);
             const tc = children[0];
             const desc = children[1];
             const name = children[2];

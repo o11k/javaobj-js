@@ -1,13 +1,14 @@
 {
   "name": "object-input-stream",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "description": "ObjectInputStream for JavaScript. Read Java serialized objects in Node and the browser.",
   "main": "dist/index.js",
   "types": "dist/index.d.js",
   "scripts": {
     "pretest": "cross-env MAVEN_OPTS='--add-opens java.base/java.io=ALL-UNNAMED' mvn -f ./tests/generatetests/pom.xml clean compile exec:java -Dexec.mainClass=com.o11k.GenerateTests",
     "test": "jest",
-    "build": "tsc"
+    "build": "tsc",
+    "pipeline": "npm install && npm run build && npm test"
   },
   "repository": {
     "type": "git",

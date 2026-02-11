@@ -1166,6 +1166,30 @@ test("ast: resets", () => {
     ]}]}
 )})
 
+test("ast: strings", () => {
+    testAst(STRINGS_FILENAME, {children: [{},{},{children: [
+        {value: ""},
+        {value: "\0"},
+        {value: "a".repeat(0xffff)},
+        {value: "b".repeat(0xffff+1)},
+        {value: Array.from({length: 0xffff+1}, (_, i) => String.fromCharCode(i)).join('')},
+    ]}]})
+})
+
+test("ast: enums", () => {
+    const descHandle = {epoch: 0, handle: c.baseWireHandle};
+    testAst(ENUMS_FILENAME, {children: [{},{},{children: [
+        {objectType: "new-class", children: [{},{objectType: "new-class-desc", handle: descHandle}]},
+        {objectType: "prev-object", value: descHandle},
+
+        {objectType: "new-enum", children: [{},{},{value: "MY_VALUE_1"}]},
+        {objectType: "new-enum", children: [{},{},{value: "MY_VALUE_2"}]},
+        {objectType: "new-enum", children: [{},{},{value: "MY_VALUE_3"}]},
+        {objectType: "new-enum", children: [{},{},{value: "MY_VALUE_4"}]},
+        {objectType: "new-enum", children: [{},{},{value: "MY_VALUE_5"}]},
+    ]}]})
+})
+
 // readObject is called even if not SC_WRITE_METHOD
 // header      class A   suid=0 Serializable int x              "kaki"           x=69
 // aced0005 73 72 000141 0000000000000000 02 000149000178 78 70 770600046b616b69 00000045
