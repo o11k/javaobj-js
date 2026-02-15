@@ -987,7 +987,7 @@ function expectAstSpansValid(ast: ast.Ast) {
         if (node.children.length === 0)
             return;
 
-        expect(node.span.start).toBe(node.children[0].span.start);
+        expect(node.span.start).toBe(node.children[0]!.span.start);
         expect(node.span.end).toBe(node.children[node.children.length-1].span.end);
         for (let i=1; i<node.children.length; i++) {
             expect(node.children[i-1].span.end).toBe(node.children[i].span.start);
@@ -1188,6 +1188,22 @@ test("ast: enums", () => {
         {objectType: "new-enum", children: [{},{},{value: "MY_VALUE_4"}]},
         {objectType: "new-enum", children: [{},{},{value: "MY_VALUE_5"}]},
     ]}]})
+})
+
+test("ast: containers", () => {
+    testAst(CONTAINERS_FILENAME, {children: [{},{},{children: [
+        {children: [{},{children: [{},{value: "java.util.ArrayList" },{},{}]},{}]},
+        {children: [{},{children: [{},{value: "java.util.LinkedList"},{},{}]},{}]},
+        {children: [{},{children: [{},{value: "java.util.ArrayDeque"},{},{}]},{}]},
+
+        {children: [{},{children: [{},{value: "java.util.HashSet"      },{},{}]},{}]},
+        {children: [{},{children: [{},{value: "java.util.LinkedHashSet"},{},{}]},{}]},
+        {children: [{},{children: [{},{value: "java.util.TreeSet"      },{},{}]},{}]},
+
+        {children: [{},{children: [{},{},{},{children: [{},{},{},{children: [{},{value: "java.util.HashMap"      },{},{}]}]}]},{}]},
+        {children: [{},{children: [{},{},{},{children: [{},{},{},{children: [{},{value: "java.util.LinkedHashMap"},{},{}]}]}]},{}]},
+        {children: [{},{children: [{},{},{},{children: [{},{},{},{children: [{},{value: "java.util.TreeMap"      },{},{}]}]}]},{}]},
+    ]}]});
 })
 
 // readObject is called even if not SC_WRITE_METHOD

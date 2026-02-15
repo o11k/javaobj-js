@@ -194,7 +194,10 @@ export type SerialClassDataNode = NoWrClassNode | WrClassNode;
 export interface NoWrClassNode extends BaseNode<
     // Compliant signature is [ValuesNode],
     // but read methods can ignore this constraint
-    [ContentsNode, ...([ValuesNode]|[])]
+    | [ValuesNode]
+    | [ContentsNode, ValuesNode]
+    | [ContentsNode]
+    | []
 > {
     type: "class-data"
     writeMethod: false
@@ -202,7 +205,9 @@ export interface NoWrClassNode extends BaseNode<
 export interface WrClassNode extends BaseNode<
     // Compliant signature is [ValuesNode, AnnotationNode],
     // but read methods can ignore this constraint
-    [...([ContentsNode, ValuesNode]|[]), AnnotationNode]
+    | [ValuesNode, AnnotationNode]
+    | [ContentsNode, ValuesNode, AnnotationNode]
+    | [AnnotationNode]
 > {
     type: "class-data"
     writeMethod: true

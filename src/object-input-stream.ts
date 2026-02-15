@@ -691,7 +691,7 @@ export class ObjectInputStream {
                 }
             }
 
-            if (objDesc.hasWriteObjectData) {
+            if (curDesc.hasWriteObjectData) {
                 this.readClassDataWr(obj, curDesc, readMethod);
             } else {
                 this.readClassDataNoWr(obj, curDesc, readMethod);
@@ -705,9 +705,6 @@ export class ObjectInputStream {
         this.readClassData(obj, desc, readMethod);
     }
     protected readClassData(obj: Serializable, desc: ObjectStreamClass, readMethod: ReadMethodT): void {
-        if (readMethod === null)
-            readMethod = defaultReadMethod;
-
         const oldContext = this.curContext;
         this.curContext = {
             desc: desc,
@@ -717,7 +714,7 @@ export class ObjectInputStream {
         }
 
         this.setBlockDataMode(true);
-        readMethod!.apply(obj, [this]);
+        readMethod.apply(obj, [this]);
         if (desc.hasWriteObjectData)
             this.readAnnotation();
 

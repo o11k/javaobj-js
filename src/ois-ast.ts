@@ -831,6 +831,7 @@ function cstToAstNode(node: CSTNode, children: ast.Node[]): ast.Node {
                 values = tempValues;
                 afterValues = tempAfter;
             }
+            // Combine afterValues with annotation
             const annotationSpan = {
                 start: afterValues.length > 0 ? afterValues[0].span.start : annotation.span.start,
                 end: annotation.span.end,
@@ -845,14 +846,22 @@ function cstToAstNode(node: CSTNode, children: ast.Node[]): ast.Node {
                     children: [...afterValues, ...annotation.children[0].children],
                 }, annotation.children[1]],
             }
+            // contents = beforeValues as a node
             const constentsSpan = {start: node.span.start, end: values !== null ? values.span.start : -1};
             const contents: ast.ContentsNode = {
                 type: "contents",
                 span: constentsSpan,
                 children: [...beforeValues],
             }
-            const beforeAnnotation = values !== null ? [contents, values] as const : [] as const;
-            return {type: "class-data", writeMethod: true, span: node.span, children: [...beforeAnnotation, newAnnotation]}
+            // Build final children
+            const hasContents = beforeValues.length > 0;
+            const astChildren: ast.WrClassNode["children"] =
+                (values === null && !hasContents) ? [newAnnotation] :
+                (values !== null && !hasContents) ? [values, newAnnotation] :
+                (values !== null &&  hasContents) ? [contents, values, newAnnotation] :
+                [newAnnotation]  // this should never happen
+            ;
+            return {type: "class-data", writeMethod: true, span: node.span, children: astChildren}
         }
         case "class-data-no-wr": {
             const hasValues = children.length > 0 && children[children.length-1].type === "values";
